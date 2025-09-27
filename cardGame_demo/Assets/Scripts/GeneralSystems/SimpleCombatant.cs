@@ -4,7 +4,7 @@ using UnityEngine;
 public class SimpleCombatant : MonoBehaviour
 {
     [Header("Base Stats")]
-    [SerializeField] private int maxHP = 80;
+    [SerializeField] public int maxHP = 80;
     public int MaxHP => maxHP;
 
     [Header("Runtime (Inspector-visible)")]

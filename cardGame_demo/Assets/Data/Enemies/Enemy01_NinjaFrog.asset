@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 805ea3f0fc45cd444a52fac847de872c, type: 3}
+  m_Name: Enemy01_NinjaFrog
+  m_EditorClassIdentifier: 
+  enemyName: NinjaFrog
+  enemyId: enemy_001
+  enemySprite: {fileID: -6367560908665664636, guid: cd947491a13509945aa1b644f9db3ef2, type: 3}
+  maxHealth: 60
+  attackRange:
+    min: 16
+    max: 20
+  defenseRange:
+    min: 2
+    max: 8
+  maxRange: 21
+  acts: 01000000
+  enemyPrefab: {fileID: 7984944881641689443, guid: a4023693eb6b2fb49af44da1d03b29e2, type: 3}

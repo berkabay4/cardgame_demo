@@ -131,6 +131,17 @@ public class ActionCoordinator : MonoBehaviour
     // === Helpers (tek yerden event) ===
     void SetStep(TurnStep s) { step = s; onStepChanged?.Invoke(step); AnnounceStep(); }
     void SetWaitingForTarget(bool v) { if (waitingForTarget == v) { waitingForTarget = v; return; } waitingForTarget = v; onWaitingForTargetChanged?.Invoke(waitingForTarget); }
+    bool TryAutoSelectSingleEnemy()
+    {
+        // yalnizca canlı düşmanları say
+        var alive = enemies.Where(e => e && e.CurrentHP > 0).ToList();
+        if (alive.Count == 1 && waitingForTarget && step == TurnStep.PlayerAtk)
+        {
+            // SelectTargetSafe zaten gerekli kontrolleri yapıyor ve akışı başlatıyor
+            return SelectTargetSafe(alive[0]);
+        }
+        return false;
+    }
 
     void StartNewTurn()
     {
@@ -227,6 +238,13 @@ public class ActionCoordinator : MonoBehaviour
                 onPlayerAtkLocked?.Invoke(playerAtkTotal);
 
                 SetWaitingForTarget(true);
+                onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
+
+                // YENİ: sahnede tek düşman varsa otomatik hedef seç
+                if (TryAutoSelectSingleEnemy())
+                {
+                    onLog?.Invoke("[SelectTarget] Single enemy detected. Auto-targeted.");
+                }
                 onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
                 break;
 

@@ -483,7 +483,10 @@ MonoBehaviour:
   - {fileID: 1084258913}
   enemyPrefab: {fileID: 7984944881641689443, guid: a4023693eb6b2fb49af44da1d03b29e2, type: 3}
   parentForSpawned: {fileID: 1150158933}
+  currentAct: 1
+  database: {fileID: 11400000, guid: bcdc83852971f9c4b969644209576054, type: 2}
   destroyExistingOnPoint: 1
+  pickRandom: 1
   testSpawnCount: 1
   spawnOnToggle: 0
   autoResetToggle: 1
@@ -663,6 +666,7 @@ Transform:
   m_Children:
   - {fileID: 1932883325}
   - {fileID: 504497088}
+  - {fileID: 1166215890}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &728126148
@@ -1223,13 +1227,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1166215889}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -960, y: -835.98, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 728126149}
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 660692081}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1225915542
 GameObject:
@@ -1558,8 +1562,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b2c15ece9324d164e82dc209bc8fa2fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  travelTime: 0.25
-  returnTime: 0.25
+  travelTime: 1
+  returnTime: 1
   ease:
     serializedVersion: 2
     m_Curve:
@@ -1584,7 +1588,9 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  hitOffset: {x: 0.3, y: 0, z: 0}
+  approachDistance: 0.35
+  moveRoot: 1
+  faceTarget: 0
 --- !u!1 &1532208412
 GameObject:
   m_ObjectHideFlags: 0
@@ -1744,6 +1750,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   dontDestroyOnLoad: 1
+  enemyAttackSpacing: 1
   threshold: 21
   reshuffleWhenLow: 1
   lowDeckCount: 8
@@ -1798,6 +1805,8 @@ MonoBehaviour:
   onAttackAnimationRequest:
     m_PersistentCalls:
       m_Calls: []
+  animImpactTimeout: 2
+  animDoneTimeout: 2
 --- !u!1 &2001393479
 GameObject:
   m_ObjectHideFlags: 0
@@ -2021,4 +2030,3 @@ SceneRoots:
   - {fileID: 2216085054639475987}
   - {fileID: 1445870580}
   - {fileID: 1091923027}
-  - {fileID: 1166215890}
