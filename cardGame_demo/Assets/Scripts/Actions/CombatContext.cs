@@ -21,10 +21,11 @@ public class CombatContext
         Units[Actor.Player] = player; 
         Units[Actor.Enemy]  = enemy;
 
-        Phases[(Actor.Player, PhaseKind.Defense)] = new PhaseAccumulator("P.DEF");
-        Phases[(Actor.Player, PhaseKind.Attack)]  = new PhaseAccumulator("P.ATK");
-        Phases[(Actor.Enemy,  PhaseKind.Defense)] = new PhaseAccumulator("E.DEF");
-        Phases[(Actor.Enemy,  PhaseKind.Attack)]  = new PhaseAccumulator("E.ATK");
+        Phases[(Actor.Player, PhaseKind.Defense)] = new PhaseAccumulator("P.DEF", isPlayer: true);
+        Phases[(Actor.Player, PhaseKind.Attack)]  = new PhaseAccumulator("P.ATK", isPlayer: true);
+
+        Phases[(Actor.Enemy,  PhaseKind.Defense)] = new PhaseAccumulator("E.DEF", isPlayer: false);
+        Phases[(Actor.Enemy,  PhaseKind.Attack)]  = new PhaseAccumulator("E.ATK", isPlayer: false);
     }
 
     public PhaseAccumulator GetAcc(Actor a, PhaseKind k) => Phases[(a,k)];

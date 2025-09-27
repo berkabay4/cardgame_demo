@@ -9,7 +9,13 @@ public class PhaseAccumulator
     public int Total      { get; private set; }
 
     readonly string _name;
-    public PhaseAccumulator(string name){ _name = name; }
+    readonly bool _isPlayer; // <<< EKLENDİ
+
+    public PhaseAccumulator(string name, bool isPlayer = false)
+    {
+        _name = name;
+        _isPlayer = isPlayer;
+    }
 
     public void Reset()
     {
@@ -27,7 +33,16 @@ public class PhaseAccumulator
         var c = deck.Draw();
         Cards.Add(c);
 
-        int raw = BlackjackMath.RawTotal(Cards); // ← düz toplam
+        // --- JOKER KURALI (Sadece OYUNCU için) ---
+        if (_isPlayer && c.IsJoker)
+        {
+            Total = threshold;
+            IsStanding = true;         // otomatik Stand
+            Debug.Log($"[{_name}] HIT → JOKER! {Total}/{threshold} (auto-Stand)");
+            return;
+        }
+
+        int raw = BlackjackMath.RawTotal(Cards);
         Total = raw;
 
         Debug.Log($"[{_name}] HIT → {c} | {Total}/{threshold}");
@@ -35,7 +50,7 @@ public class PhaseAccumulator
         if (Total > threshold)
         {
             IsBusted = true;
-            Total = 0; // kural: eşik aşıldı → değer 0
+            Total = 0;
             Debug.Log($"[{_name}] BUST! Value becomes 0.");
         }
     }
@@ -43,7 +58,7 @@ public class PhaseAccumulator
     public void Stand(int threshold)
     {
         if (IsBusted) return;
-        Total = BlackjackMath.RawTotal(Cards); // ← düz toplam
+        Total = BlackjackMath.RawTotal(Cards);
         IsStanding = true;
         Debug.Log($"[{_name}] STAND → {Total}");
         if (Total > threshold)

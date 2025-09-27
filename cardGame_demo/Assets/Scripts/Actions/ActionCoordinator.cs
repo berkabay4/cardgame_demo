@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-public enum TurnStep { PlayerDef, PlayerAtk, EnemyDef, EnemyAtk, Resolve }
+public enum TurnStep { PlayerDef, PlayerAtk, SelectTarget, EnemyDef, EnemyAtk, Resolve }
 
 // === State Event Types ===
 [System.Serializable] public class StepEvent : UnityEvent<TurnStep> {}
@@ -73,7 +73,10 @@ public class ActionCoordinator : MonoBehaviour
 
     readonly Dictionary<SimpleCombatant, int> enemyDefTotals = new();
     readonly Dictionary<SimpleCombatant, int> enemyAtkTotals = new();
+    [SerializeField, Min(0f)] float inputDebounceSeconds = 0.12f;
 
+    bool inputLocked;           // tık kilidi
+    float _lastClickTime = -999f;
     int playerDefTotal;
     int playerAtkTotal;
 
@@ -136,19 +139,35 @@ public class ActionCoordinator : MonoBehaviour
 
     // === Helpers (tek yerden event) ===
     void SetStep(TurnStep s) { step = s; onStepChanged?.Invoke(step); AnnounceStep(); }
-    void SetWaitingForTarget(bool v) { if (waitingForTarget == v) { waitingForTarget = v; return; } waitingForTarget = v; onWaitingForTargetChanged?.Invoke(waitingForTarget); }
+    void SetWaitingForTarget(bool v)
+    {
+        if (waitingForTarget == v) { waitingForTarget = v; return; }
+        waitingForTarget = v;
+        onLog?.Invoke($"[State] waitingForTarget = {waitingForTarget} (step={step})");
+        onWaitingForTargetChanged?.Invoke(waitingForTarget);
+    }
     bool TryAutoSelectSingleEnemy()
     {
-        // yalnizca canlı düşmanları say
         var alive = enemies.Where(e => e && e.CurrentHP > 0).ToList();
-        if (alive.Count == 1 && waitingForTarget && step == TurnStep.PlayerAtk)
-        {
-            // SelectTargetSafe zaten gerekli kontrolleri yapıyor ve akışı başlatıyor
+        if (alive.Count == 1 && waitingForTarget && step == TurnStep.SelectTarget)
             return SelectTargetSafe(alive[0]);
-        }
         return false;
     }
 
+    IEnumerator EnqueueAndRun(System.Action enqueueActions)
+    {
+        inputLocked = true;
+        isBusy = true;
+
+        // Aksiyonları burada kuyrukla
+        enqueueActions?.Invoke();
+
+        // Kuyruktakileri çalıştır
+        yield return StartCoroutine(queue.RunAllCoroutine(ctx));
+
+        isBusy = false;
+        inputLocked = false;
+    }
     void StartNewTurn()
     {
         if (!isGameStarted) return;
@@ -226,11 +245,12 @@ public class ActionCoordinator : MonoBehaviour
     {
         onLog?.Invoke(step switch
         {
-            TurnStep.PlayerDef => "Your Defense: Draw or Accept.",
-            TurnStep.PlayerAtk => "Your Attack: Draw or Accept.",
-            TurnStep.EnemyDef  => "Enemies choosing Defense (in order)...",
-            TurnStep.EnemyAtk  => "Enemies choosing Attack (in order)...",
-            TurnStep.Resolve   => "Resolving...",
+            TurnStep.PlayerDef   => "Your Defense: Draw or Accept.",
+            TurnStep.PlayerAtk   => "Your Attack: Draw or Accept.",
+            TurnStep.SelectTarget=> "Select a target for your locked Attack.",
+            TurnStep.EnemyDef    => "Enemies choosing Defense (in order)...",
+            TurnStep.EnemyAtk    => "Enemies choosing Attack (in order)...",
+            TurnStep.Resolve     => "Resolving...",
             _ => ""
         });
     }
@@ -241,36 +261,47 @@ public class ActionCoordinator : MonoBehaviour
 
         if (step == TurnStep.PlayerDef)
         {
-            queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Defense));
-            StartCoroutine(queue.RunAllCoroutine(ctx));
-            if (ctx.GetAcc(Actor.Player, PhaseKind.Defense).IsBusted) GoNextFromPlayerDef();
+            SetWaitingForTarget(false);
+            var accDef = ctx.GetAcc(Actor.Player, PhaseKind.Defense);
+            accDef.Reset();
+            onLog?.Invoke("Your Defense: Draw or Accept.");
         }
         else if (step == TurnStep.PlayerAtk)
         {
-            queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Attack));
-            StartCoroutine(queue.RunAllCoroutine(ctx));
-            if (ctx.GetAcc(Actor.Player, PhaseKind.Attack).IsBusted) GoNextFromPlayerAtk();
+            SetWaitingForTarget(false);
+            var accAtk = ctx.GetAcc(Actor.Player, PhaseKind.Attack);
+            accAtk.Reset();
+            onLog?.Invoke("Your Attack: Draw or Accept.");
+        }
+        else if (step == TurnStep.SelectTarget)
+        {
+            // ATK değeri kilitlenmiş olmalı; şimdi hedef bekliyoruz
+            SetWaitingForTarget(true);
+            onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
+            // Tek canlı düşman varsa otomatik hedefle
+            if (TryAutoSelectSingleEnemy())
+                onLog?.Invoke("[SelectTarget] Single enemy detected. Auto-targeted.");
         }
     }
-
     // === UI: Draw / Accept ===
     public void OnDrawClicked()
     {
+        Debug.Log($"[UI] OnDrawClicked fired (step={step}, isBusy={isBusy}, waiting={waitingForTarget}, locked={inputLocked})");
         if (!isGameStarted) { onLog?.Invoke("Press START to begin."); return; }
-        if (isBusy || waitingForTarget) { onLog?.Invoke("Please wait..."); return; }
+        if (isBusy || waitingForTarget || inputLocked) { onLog?.Invoke("Please wait..."); return; }
+
+        float now = Time.unscaledTime;
+        if (now - _lastClickTime < inputDebounceSeconds) return;
+        _lastClickTime = now;
 
         switch (step)
         {
             case TurnStep.PlayerDef:
-                queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Defense));
-                StartCoroutine(queue.RunAllCoroutine(ctx));
-                if (ctx.GetAcc(Actor.Player, PhaseKind.Defense).IsBusted) GoNextFromPlayerDef();
+                StartCoroutine(PlayerDefDrawFlow());
                 break;
 
             case TurnStep.PlayerAtk:
-                queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Attack));
-                StartCoroutine(queue.RunAllCoroutine(ctx));
-                if (ctx.GetAcc(Actor.Player, PhaseKind.Attack).IsBusted) GoNextFromPlayerAtk();
+                StartCoroutine(PlayerAtkDrawFlow());
                 break;
 
             default:
@@ -278,37 +309,76 @@ public class ActionCoordinator : MonoBehaviour
                 break;
         }
     }
+
+    IEnumerator PlayerDefDrawFlow()
+    {
+        // önce gerçekten draw’ı çalıştır
+        yield return StartCoroutine(EnqueueAndRun(() =>
+        {
+            queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Defense));
+        }));
+
+        // draw tamamlandıktan SONRA durum kontrolü
+        var accDef = ctx.GetAcc(Actor.Player, PhaseKind.Defense);
+        if (accDef.IsBusted)
+        {
+            GoNextFromPlayerDef();
+            yield break;
+        }
+        if (accDef.IsStanding) // Joker auto-Stand
+        {
+            playerDefTotal = accDef.Total;
+            onPlayerDefLocked?.Invoke(playerDefTotal);
+            BeginPhase(TurnStep.PlayerAtk);
+            yield break;
+        }
+        // ne bust ne stand ise burada kalır; kullanıcı tekrar Draw/Accept yapar
+    }
+
+    IEnumerator PlayerAtkDrawFlow()
+    {
+        yield return StartCoroutine(EnqueueAndRun(() =>
+        {
+            queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Attack));
+        }));
+
+        var accAtk = ctx.GetAcc(Actor.Player, PhaseKind.Attack);
+        if (accAtk.IsBusted)
+        {
+            GoNextFromPlayerAtk();
+            yield break;
+        }
+        if (accAtk.IsStanding) // Joker auto-Stand
+        {
+            playerAtkTotal = accAtk.Total;
+            player.CurrentAttack = playerAtkTotal;
+            onPlayerAtkLocked?.Invoke(playerAtkTotal);
+
+            SetWaitingForTarget(true);
+            onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
+            if (TryAutoSelectSingleEnemy())
+                onLog?.Invoke("[SelectTarget] Single enemy detected. Auto-targeted.");
+            yield break;
+        }
+    }
     public void OnAcceptClicked()
     {
+        Debug.Log($"[UI] OnAcceptClicked fired (step={step}, isBusy={isBusy}, waiting={waitingForTarget})");
         if (!isGameStarted) { onLog?.Invoke("Press START to begin."); return; }
-        if (isBusy || waitingForTarget) { onLog?.Invoke("Please wait..."); return; }
+        if (isBusy || waitingForTarget || inputLocked) { onLog?.Invoke("Please wait..."); return; }
+
+        float now = Time.unscaledTime;
+        if (now - _lastClickTime < inputDebounceSeconds) return;
+        _lastClickTime = now;
 
         switch (step)
         {
             case TurnStep.PlayerDef:
-                queue.Enqueue(new StandAction(Actor.Player, PhaseKind.Defense));
-                StartCoroutine(queue.RunAllCoroutine(ctx));
-                playerDefTotal = ctx.GetAcc(Actor.Player, PhaseKind.Defense).Total;
-                onPlayerDefLocked?.Invoke(playerDefTotal);
-                BeginPhase(TurnStep.PlayerAtk);
+                StartCoroutine(PlayerDefAcceptFlow());
                 break;
 
             case TurnStep.PlayerAtk:
-                queue.Enqueue(new StandAction(Actor.Player, PhaseKind.Attack));
-                StartCoroutine(queue.RunAllCoroutine(ctx));
-                playerAtkTotal = ctx.GetAcc(Actor.Player, PhaseKind.Attack).Total;
-                player.CurrentAttack = playerAtkTotal;
-                onPlayerAtkLocked?.Invoke(playerAtkTotal);
-
-                SetWaitingForTarget(true);
-                onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
-
-                // Tek düşmansa otomatik seç
-                if (TryAutoSelectSingleEnemy())
-                {
-                    onLog?.Invoke("[SelectTarget] Single enemy detected. Auto-targeted.");
-                    // Auto-seçim SelectTargetSafe içinden Resolve'ı başlatacak (aşağıda)
-                }
+                StartCoroutine(PlayerAtkAcceptFlow()); // -> SelectTarget’a geçecek
                 break;
 
             default:
@@ -316,7 +386,37 @@ public class ActionCoordinator : MonoBehaviour
                 break;
         }
     }
+    IEnumerator PlayerDefAcceptFlow()
+    {
+        // Stand(DEF) kuyruğa → çalıştır (kilit içeride)
+        yield return StartCoroutine(EnqueueAndRun(() =>
+        {
+            queue.Enqueue(new StandAction(Actor.Player, PhaseKind.Defense));
+        }));
 
+        // Kuyruk bittikten SONRA değerleri oku ve ATK fazına geç
+        playerDefTotal = ctx.GetAcc(Actor.Player, PhaseKind.Defense).Total;
+        onPlayerDefLocked?.Invoke(playerDefTotal);
+
+        SetWaitingForTarget(false);              // güvence
+        BeginPhase(TurnStep.PlayerAtk);          // ATK’a geç; BeginPhase zaten P.ATK Reset yapıyor
+    }
+
+    IEnumerator PlayerAtkAcceptFlow()
+    {
+        // ATK'i kilitle
+        yield return StartCoroutine(EnqueueAndRun(() =>
+        {
+            queue.Enqueue(new StandAction(Actor.Player, PhaseKind.Attack));
+        }));
+
+        playerAtkTotal = ctx.GetAcc(Actor.Player, PhaseKind.Attack).Total;
+        player.CurrentAttack = playerAtkTotal;
+        onPlayerAtkLocked?.Invoke(playerAtkTotal);
+
+        // Artık hedef seçme state'ine geç
+        BeginPhase(TurnStep.SelectTarget);
+    }
     void GoNextFromPlayerDef()
     {
         playerDefTotal = 0;
@@ -339,7 +439,7 @@ public class ActionCoordinator : MonoBehaviour
 
     public bool SelectTargetSafe(SimpleCombatant enemy)
     {
-        if (!waitingForTarget || step != TurnStep.PlayerAtk)
+        if (step != TurnStep.SelectTarget || !waitingForTarget)
         {
             onLog?.Invoke("[SelectTarget] Not expecting a target now.");
             return false;
@@ -354,8 +454,7 @@ public class ActionCoordinator : MonoBehaviour
         onTargetChanged?.Invoke(currentTarget);
         SetWaitingForTarget(false);
 
-        // DÜZELTİLDİ: ESKİDE burada düşman fazlarını başlatıyorduk.
-        // Artık düşman değerleri hazır; direkt resolve.
+        // Düşman fazları önceden hesaplandı; direkt resolve
         StartCoroutine(ResolveAllAndCleanup());
         return true;
     }
