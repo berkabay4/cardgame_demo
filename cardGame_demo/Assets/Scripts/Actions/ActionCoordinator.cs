@@ -24,6 +24,9 @@ public class ActionCoordinator : MonoBehaviour
     [Header("Lifecycle")]
     [SerializeField] private bool dontDestroyOnLoad = true;
     [SerializeField, Min(0f)] float enemyAttackSpacing = 1.0f; // düşman saldırıları arası ek bekleme
+    [SerializeField] private bool autoStartOnAwake = false;
+    public UnityEvent onGameStarted;
+    private bool isGameStarted = false;
 
     // --------- Settings ----------
     [Header("Settings")]
@@ -85,16 +88,11 @@ public class ActionCoordinator : MonoBehaviour
     public void AnimReportDone()    { _animDone   = true; }
     void Awake()
     {
-        // --- Singleton boot ---
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
 
-        // --- Normal init ---
+        // enemies init + ctx init vs...
         if (enemies == null || enemies.Count == 0)
         {
             var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
@@ -107,9 +105,17 @@ public class ActionCoordinator : MonoBehaviour
         ctx.OnProgress.AddListener((a,k,cur,max)=> onProgress?.Invoke(a,k,cur,max));
         ctx.OnCardDrawn.AddListener((a,k,c)=> onCardDrawn?.Invoke(a,k,c));
         ctx.OnLog.AddListener(s=> onLog?.Invoke(s));
-
         queue = new ActionQueue();
 
+        // ÖNCEKİ: StartNewTurn();  --> KALDIRILDI
+        if (autoStartOnAwake) StartGame();
+        else onLog?.Invoke("Press START to begin.");
+    }
+    public void StartGame()
+    {
+        if (isGameStarted) return;
+        isGameStarted = true;
+        onGameStarted?.Invoke();
         StartNewTurn();
     }
     void OnEnable()
@@ -145,6 +151,8 @@ public class ActionCoordinator : MonoBehaviour
 
     void StartNewTurn()
     {
+        if (!isGameStarted) return;
+
         onRoundStarted?.Invoke();
 
         SetWaitingForTarget(false);
@@ -157,6 +165,60 @@ public class ActionCoordinator : MonoBehaviour
         queue.Enqueue(new StartTurnAction(reshuffleWhenLow, lowDeckCount));
         StartCoroutine(queue.RunAllCoroutine(ctx));
 
+
+        if (enemyTurnCo != null) StopCoroutine(enemyTurnCo);
+        enemyTurnCo = StartCoroutine(EnemiesPrecomputeTwoPhasesRoutine());
+    }
+    IEnumerator EnemiesPrecomputeTwoPhasesRoutine()
+    {
+        isBusy = true;
+
+        if (enemies.Count == 0)
+        {
+            onLog?.Invoke("No enemies.");
+            // Düşman yoksa direkt oyuncuya geç
+            BeginPhase(TurnStep.PlayerDef);
+            isBusy = false;
+            yield break;
+        }
+
+        // --- Enemy DEF ---
+        SetStep(TurnStep.EnemyDef);
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            var e = enemies[i];
+            if (!e) continue;
+
+            SwapCtxEnemy(e);
+            onEnemyTurnIndexChanged?.Invoke(e, i);
+            onEnemyPhaseStarted?.Invoke(e, PhaseKind.Defense);
+
+            yield return StartCoroutine(RunEnemyPhaseWithDelays(PhaseKind.Defense));
+            int totalDef = ctx.GetAcc(Actor.Enemy, PhaseKind.Defense).Total;
+            enemyDefTotals[e] = totalDef;
+            onEnemyPhaseEnded?.Invoke(e, PhaseKind.Defense, totalDef);
+        }
+
+        // --- Enemy ATK ---
+        SetStep(TurnStep.EnemyAtk);
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            var e = enemies[i];
+            if (!e) continue;
+
+            SwapCtxEnemy(e);
+            onEnemyTurnIndexChanged?.Invoke(e, i);
+            onEnemyPhaseStarted?.Invoke(e, PhaseKind.Attack);
+
+            yield return StartCoroutine(RunEnemyPhaseWithDelays(PhaseKind.Attack));
+            int atk = ctx.GetAcc(Actor.Enemy, PhaseKind.Attack).Total;
+            enemyAtkTotals[e] = atk;
+            e.CurrentAttack = atk;
+            onEnemyPhaseEnded?.Invoke(e, PhaseKind.Attack, atk);
+        }
+
+        // Düşman değerleri hazır → oyuncu turlarına geç
+        isBusy = false;
         BeginPhase(TurnStep.PlayerDef);
     }
 
@@ -194,6 +256,7 @@ public class ActionCoordinator : MonoBehaviour
     // === UI: Draw / Accept ===
     public void OnDrawClicked()
     {
+        if (!isGameStarted) { onLog?.Invoke("Press START to begin."); return; }
         if (isBusy || waitingForTarget) { onLog?.Invoke("Please wait..."); return; }
 
         switch (step)
@@ -215,9 +278,9 @@ public class ActionCoordinator : MonoBehaviour
                 break;
         }
     }
-
     public void OnAcceptClicked()
     {
+        if (!isGameStarted) { onLog?.Invoke("Press START to begin."); return; }
         if (isBusy || waitingForTarget) { onLog?.Invoke("Please wait..."); return; }
 
         switch (step)
@@ -240,12 +303,12 @@ public class ActionCoordinator : MonoBehaviour
                 SetWaitingForTarget(true);
                 onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
 
-                // YENİ: sahnede tek düşman varsa otomatik hedef seç
+                // Tek düşmansa otomatik seç
                 if (TryAutoSelectSingleEnemy())
                 {
                     onLog?.Invoke("[SelectTarget] Single enemy detected. Auto-targeted.");
+                    // Auto-seçim SelectTargetSafe içinden Resolve'ı başlatacak (aşağıda)
                 }
-                onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
                 break;
 
             default:
@@ -266,9 +329,11 @@ public class ActionCoordinator : MonoBehaviour
         player.CurrentAttack = 0;
 
         SetWaitingForTarget(false);
-        if (enemyTurnCo != null) StopCoroutine(enemyTurnCo);
-        enemyTurnCo = StartCoroutine(EnemiesAutoTwoPhasesRoutine());
+        // ESKİ: düşman fazlarına geçiyordu
+        // YENİ: düşmanlar zaten hazır → direkt resolve
+        StartCoroutine(ResolveAllAndCleanup());
     }
+
 
     Coroutine enemyTurnCo;
 
@@ -289,11 +354,11 @@ public class ActionCoordinator : MonoBehaviour
         onTargetChanged?.Invoke(currentTarget);
         SetWaitingForTarget(false);
 
-        if (enemyTurnCo != null) StopCoroutine(enemyTurnCo);
-        enemyTurnCo = StartCoroutine(EnemiesAutoTwoPhasesRoutine());
+        // DÜZELTİLDİ: ESKİDE burada düşman fazlarını başlatıyorduk.
+        // Artık düşman değerleri hazır; direkt resolve.
+        StartCoroutine(ResolveAllAndCleanup());
         return true;
     }
-
     public void SelectTarget(SimpleCombatant enemy) => SelectTargetSafe(enemy);
 
     IEnumerator EnemiesAutoTwoPhasesRoutine()
