@@ -1,26 +1,32 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class EnemySpawner : MonoBehaviour
 {
     [Header("Setup")]
-    [SerializeField] private List<Transform> spawnPoints = new List<Transform>(3); // 0,1,2
+    [SerializeField] private List<Transform> spawnPoints = new List<Transform>(3);
     [SerializeField] private GameObject enemyPrefab;
-    [SerializeField] private Transform parentForSpawned; // opsiyonel: sahneyi düzenli tutmak için
+    [SerializeField] private Transform parentForSpawned;
 
     [Header("Options")]
-    [Tooltip("Spawn öncesi noktadaki önceki düşmanı temizle? (Basit kullanım için)")]
     [SerializeField] private bool destroyExistingOnPoint = true;
 
     [Header("Test (Inspector)")]
     [SerializeField, Min(0)] private int testSpawnCount = 1;
-    [SerializeField] private bool spawnOnToggle = false;        // false -> true olduğunda spawn
-    [SerializeField] private bool autoResetToggle = true;       // spawn sonrası tekrar false yap
-    [SerializeField] private bool useDelayForTest = false;      // test spawn'ında gecikmeli sıralı spawn
+    [SerializeField] private bool spawnOnToggle = false;     // false -> true olduğunda spawn
+    [SerializeField] private bool autoResetToggle = true;
+    [SerializeField] private bool useDelayForTest = false;
     [SerializeField, Min(0f)] private float testDelayBetween = 0.2f;
 
     private bool _prevSpawnOnToggle;
+
+    // ---- Events ----
+    [Header("Events")]
+    public UnityEvent onEnemiesSpawned;                  // tüm spawnlar bitti
+    public UnityEvent<GameObject> onEnemySpawned;        // her yeni düşman için
+    public static event System.Action EnemiesSpawned;    // global (isteğe bağlı)
 
     // Basit: anında spawn – ilk N noktayı doldur
     public List<GameObject> SpawnCount(int count)
@@ -44,20 +50,40 @@ public class EnemySpawner : MonoBehaviour
                 DestroyChildrenOf(p);
 
             var go = Instantiate(enemyPrefab, p.position, p.rotation, parentForSpawned ? parentForSpawned : null);
+
+            // parent noktaya almak istersen:
+            // if (!parentForSpawned) go.transform.SetParent(p);
+            // META ekle / doldur
+            var meta = go.GetComponent<EnemySpawnMeta>();
+            if (!meta) meta = go.AddComponent<EnemySpawnMeta>();
+            meta.source = this;
+            meta.spawnPoint = p;
+            meta.spawnIndex = i;
+
+            // mevcut kodun devamı...
             spawned.Add(go);
+            onEnemySpawned?.Invoke(go);
+            spawned.Add(go);
+
+            // per-enemy event
+            onEnemySpawned?.Invoke(go);
         }
 
-        // Fazla noktalardaki eski düşmanları temizlemek istersen:
+        // Kullanılmayan noktalardakileri temizle
         if (destroyExistingOnPoint)
         {
             for (int i = n; i < spawnPoints.Count; i++)
                 DestroyChildrenOf(spawnPoints[i]);
         }
 
+        // batch bitti
+        onEnemiesSpawned?.Invoke();
+        EnemiesSpawned?.Invoke();
+
         return spawned;
     }
 
-    // Delay ile sırayla spawn (isteğe bağlı)
+    // Delay ile sırayla spawn
     public IEnumerator SpawnCountWithDelay(int count, float delayBetween = 0.2f)
     {
         if (!enemyPrefab || spawnPoints.Count == 0)
@@ -75,32 +101,38 @@ public class EnemySpawner : MonoBehaviour
             if (destroyExistingOnPoint)
                 DestroyChildrenOf(p);
 
-            Instantiate(enemyPrefab, p.position, p.rotation, parentForSpawned ? parentForSpawned : null);
+            var go = Instantiate(enemyPrefab, p.position, p.rotation, parentForSpawned ? parentForSpawned : null);
+            var meta = go.GetComponent<EnemySpawnMeta>();
+            if (!meta) meta = go.AddComponent<EnemySpawnMeta>();
+            meta.source = this;
+            meta.spawnPoint = p;
+            meta.spawnIndex = i;
+            onEnemySpawned?.Invoke(go);
+            
             if (delayBetween > 0f) yield return new WaitForSeconds(delayBetween);
         }
 
-        // Artan noktaları boşaltmak istersen
         if (destroyExistingOnPoint)
         {
             for (int i = n; i < spawnPoints.Count; i++)
                 DestroyChildrenOf(spawnPoints[i]);
         }
+
+        onEnemiesSpawned?.Invoke();
+        EnemiesSpawned?.Invoke();
     }
 
     private void DestroyChildrenOf(Transform t)
     {
         if (!t) return;
-        // Bu noktaya daha önce parent ettiysen temizler
         for (int i = t.childCount - 1; i >= 0; i--)
             Destroy(t.GetChild(i).gameObject);
     }
 
     private void Update()
     {
-        // Inspector’da false -> true kenarını yakala (sadece Play Mode’da tetikleriz)
         if (Application.isPlaying && spawnOnToggle && !_prevSpawnOnToggle)
         {
-            // Spawn tetikle
             if (useDelayForTest)
                 StartCoroutine(SpawnCountWithDelay(testSpawnCount, testDelayBetween));
             else
@@ -108,7 +140,6 @@ public class EnemySpawner : MonoBehaviour
 
             if (autoResetToggle) spawnOnToggle = false;
         }
-
         _prevSpawnOnToggle = spawnOnToggle;
     }
 

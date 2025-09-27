@@ -15,18 +15,30 @@ public enum TurnStep { PlayerDef, PlayerAtk, EnemyDef, EnemyAtk, Resolve }
 [System.Serializable] public class IntEvent : UnityEvent<int> {}
 [System.Serializable] public class TargetEvent : UnityEvent<SimpleCombatant> {}
 
+[DisallowMultipleComponent]
 public class ActionCoordinator : MonoBehaviour
 {
+    // --------- Singleton ----------
+    public static ActionCoordinator Instance { get; private set; }
+
+    [Header("Lifecycle")]
+    [SerializeField] private bool dontDestroyOnLoad = true;
+    [SerializeField, Min(0f)] float enemyAttackSpacing = 1.0f; // düşman saldırıları arası ek bekleme
+
+    // --------- Settings ----------
     [Header("Settings")]
     [SerializeField, Min(1)] int threshold = 21;
     [SerializeField] bool reshuffleWhenLow = true;
     [SerializeField, Min(5)] int lowDeckCount = 8;
     [SerializeField] Vector2 enemyDrawDelayRange = new Vector2(0.5f, 1.5f);
     public int GetThresholdSafe() => ctx != null ? ctx.Threshold : threshold;
+
+    // --------- Refs ----------
     [Header("Refs")]
     [SerializeField] SimpleCombatant player;
-    [SerializeField] List<SimpleCombatant> enemies = new List<SimpleCombatant>(); // çoklu düşman
+    [SerializeField] List<SimpleCombatant> enemies = new List<SimpleCombatant>();
 
+    // --------- Bridge/UI ----------
     [Header("UnityEvents (Bridge/UI)")]
     public UnityEvent<Actor,PhaseKind,int,int> onProgress;
     public UnityEvent<Actor,PhaseKind,Card> onCardDrawn;
@@ -34,37 +46,55 @@ public class ActionCoordinator : MonoBehaviour
     public UnityEvent onGameOver;
     public UnityEvent onGameWin;
 
+    // --------- State Events ----------
     [Header("State Events")]
-    public StepEvent onStepChanged;                         // PlayerDef, PlayerAtk, EnemyDef, EnemyAtk, Resolve
-    public BoolEvent onWaitingForTargetChanged;             // hedef seçimi bekleniyor mu
-    public EnemyIdxEvent onEnemyTurnIndexChanged;           // sıradaki düşman (enemy, index)
-    public EnemyPhaseStartedEvent onEnemyPhaseStarted;      // düşman fazı başladı
-    public EnemyPhaseEndedEvent   onEnemyPhaseEnded;        // düşman fazı bitti (toplam)
-    public UnityEvent onRoundStarted;                       // yeni el başladı
-    public UnityEvent onRoundResolved;                      // resolve bitti
-    public IntEvent onPlayerDefLocked;                      // player DEF accept sonrası total
-    public IntEvent onPlayerAtkLocked;                      // player ATK accept sonrası total
-    public TargetEvent onTargetChanged;                     // hedef değişti
+    public StepEvent onStepChanged;
+    public BoolEvent onWaitingForTargetChanged;
+    public EnemyIdxEvent onEnemyTurnIndexChanged;
+    public EnemyPhaseStartedEvent onEnemyPhaseStarted;
+    public EnemyPhaseEndedEvent onEnemyPhaseEnded;
+    public UnityEvent onRoundStarted;
+    public UnityEvent onRoundResolved;
+    public IntEvent onPlayerDefLocked;
+    public IntEvent onPlayerAtkLocked;
+    public TargetEvent onTargetChanged;
 
-    // İç durum
-    CombatContext ctx;              // tek deste; tüm round için
+    // --------- Internal state ----------
+    CombatContext ctx;
     ActionQueue queue;
     TurnStep step;
 
     bool isBusy;
-    bool waitingForTarget;          // Player ATK accept sonrası hedef seçimi beklenir
-    SimpleCombatant currentTarget;  // oyuncunun saldıracağı düşman
+    bool waitingForTarget;
+    SimpleCombatant currentTarget;
 
-    // Düşman başına DEF/ATK snapshot
     readonly Dictionary<SimpleCombatant, int> enemyDefTotals = new();
     readonly Dictionary<SimpleCombatant, int> enemyAtkTotals = new();
 
-    int playerDefTotal; // round boyunca tek
-    int playerAtkTotal; // seçilen hedefe uygulanır
+    int playerDefTotal;
+    int playerAtkTotal;
 
+    [Header("Animation Events")]
+    public UnityEvent<SimpleCombatant, SimpleCombatant, int> onAttackAnimationRequest; // (attacker, defender, damage)
+
+    // Animator'ın çağıracağı geri bildirimler:
+    private bool _animImpact;
+    private bool _animDone;
+
+    public void AnimReportImpact()  { _animImpact = true; }
+    public void AnimReportDone()    { _animDone   = true; }
     void Awake()
     {
-        // Enemies boşsa sahneden auto topla (player hariç)
+        // --- Singleton boot ---
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+
+        // --- Normal init ---
         if (enemies == null || enemies.Count == 0)
         {
             var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
@@ -74,7 +104,6 @@ public class ActionCoordinator : MonoBehaviour
         var firstEnemy = enemies.Count > 0 ? enemies[0] : null;
         ctx = new CombatContext(threshold, new DeckService(), player, firstEnemy);
 
-        // Köprüler
         ctx.OnProgress.AddListener((a,k,cur,max)=> onProgress?.Invoke(a,k,cur,max));
         ctx.OnCardDrawn.AddListener((a,k,c)=> onCardDrawn?.Invoke(a,k,c));
         ctx.OnLog.AddListener(s=> onLog?.Invoke(s));
@@ -83,26 +112,30 @@ public class ActionCoordinator : MonoBehaviour
 
         StartNewTurn();
     }
-        // === Helpers (tek yerden event) ===
-    void SetStep(TurnStep s)
+    void OnEnable()
     {
-        step = s;
-        onStepChanged?.Invoke(step);
-        AnnounceStep();
+        // Spawner'ların global eventine abone ol
+        EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
     }
 
-    void SetWaitingForTarget(bool v)
+    void OnDisable()
     {
-        if (waitingForTarget == v) { waitingForTarget = v; return; }
-        waitingForTarget = v;
-        onWaitingForTargetChanged?.Invoke(waitingForTarget);
+        EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
     }
+    void OnEnemiesSpawnedEvent()
+    {
+        RefreshEnemyListFromScene();
+        onLog?.Invoke($"[Coordinator] Enemies refreshed. Count={enemies.Count}");
+    }
+
+    // === Helpers (tek yerden event) ===
+    void SetStep(TurnStep s) { step = s; onStepChanged?.Invoke(step); AnnounceStep(); }
+    void SetWaitingForTarget(bool v) { if (waitingForTarget == v) { waitingForTarget = v; return; } waitingForTarget = v; onWaitingForTargetChanged?.Invoke(waitingForTarget); }
 
     void StartNewTurn()
     {
         onRoundStarted?.Invoke();
 
-        // Round state temizliği
         SetWaitingForTarget(false);
         currentTarget = null;
         playerDefTotal = 0;
@@ -137,19 +170,14 @@ public class ActionCoordinator : MonoBehaviour
         {
             queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Defense));
             StartCoroutine(queue.RunAllCoroutine(ctx));
-
-            var acc = ctx.GetAcc(Actor.Player, PhaseKind.Defense);
-            if (acc.IsBusted) GoNextFromPlayerDef();
+            if (ctx.GetAcc(Actor.Player, PhaseKind.Defense).IsBusted) GoNextFromPlayerDef();
         }
         else if (step == TurnStep.PlayerAtk)
         {
             queue.Enqueue(new DrawCardAction(Actor.Player, PhaseKind.Attack));
             StartCoroutine(queue.RunAllCoroutine(ctx));
-
-            var acc = ctx.GetAcc(Actor.Player, PhaseKind.Attack);
-            if (acc.IsBusted) GoNextFromPlayerAtk();
+            if (ctx.GetAcc(Actor.Player, PhaseKind.Attack).IsBusted) GoNextFromPlayerAtk();
         }
-        // Enemy aşamaları coroutine’lerde sırayla işlenecek
     }
 
     // === UI: Draw / Accept ===
@@ -198,7 +226,6 @@ public class ActionCoordinator : MonoBehaviour
                 player.CurrentAttack = playerAtkTotal;
                 onPlayerAtkLocked?.Invoke(playerAtkTotal);
 
-                // Hedef seçimi bekle
                 SetWaitingForTarget(true);
                 onLog?.Invoke($"[SelectTarget] Your ATK={playerAtkTotal}. Click an enemy to target.");
                 break;
@@ -211,16 +238,15 @@ public class ActionCoordinator : MonoBehaviour
 
     void GoNextFromPlayerDef()
     {
-        playerDefTotal = 0; // bust → 0
+        playerDefTotal = 0;
         BeginPhase(TurnStep.PlayerAtk);
     }
 
     void GoNextFromPlayerAtk()
     {
-        playerAtkTotal = 0; // bust → 0
+        playerAtkTotal = 0;
         player.CurrentAttack = 0;
 
-        // Hedefe ihtiyaç yok; direkt düşman turlarına geç
         SetWaitingForTarget(false);
         if (enemyTurnCo != null) StopCoroutine(enemyTurnCo);
         enemyTurnCo = StartCoroutine(EnemiesAutoTwoPhasesRoutine());
@@ -228,7 +254,6 @@ public class ActionCoordinator : MonoBehaviour
 
     Coroutine enemyTurnCo;
 
-    // UI/Click script’inden çağırılacak güvenli seçim
     public bool SelectTargetSafe(SimpleCombatant enemy)
     {
         if (!waitingForTarget || step != TurnStep.PlayerAtk)
@@ -251,7 +276,6 @@ public class ActionCoordinator : MonoBehaviour
         return true;
     }
 
-    // Geri uyumluluk için (doğrudan çağıran varsa)
     public void SelectTarget(SimpleCombatant enemy) => SelectTargetSafe(enemy);
 
     IEnumerator EnemiesAutoTwoPhasesRoutine()
@@ -266,7 +290,7 @@ public class ActionCoordinator : MonoBehaviour
             yield break;
         }
 
-        // --- Enemy DEF (sırayla) ---
+        // Enemy DEF
         SetStep(TurnStep.EnemyDef);
         for (int i = 0; i < enemies.Count; i++)
         {
@@ -283,7 +307,7 @@ public class ActionCoordinator : MonoBehaviour
             onEnemyPhaseEnded?.Invoke(e, PhaseKind.Defense, totalDef);
         }
 
-        // --- Enemy ATK (sırayla) ---
+        // Enemy ATK
         SetStep(TurnStep.EnemyAtk);
         for (int i = 0; i < enemies.Count; i++)
         {
@@ -301,7 +325,7 @@ public class ActionCoordinator : MonoBehaviour
             onEnemyPhaseEnded?.Invoke(e, PhaseKind.Attack, atk);
         }
 
-        // --- Resolve ---
+        // Resolve
         SetStep(TurnStep.Resolve);
         yield return ResolveAllAndCleanup();
         onRoundResolved?.Invoke();
@@ -328,52 +352,117 @@ public class ActionCoordinator : MonoBehaviour
 
         ctx.OnLog?.Invoke($"[AI] Enemy {phase} done: {ctx.GetAcc(Actor.Enemy, phase).Total}");
     }
-
-    IEnumerator ResolveAllAndCleanup()
+    public void RefreshEnemyListFromScene()
     {
-        // === Enemies → Player (toplu hasar, PlayerDEF tek seferde kırpar)
-        int totalEnemyAtk = 0;
-        foreach (var kv in enemyAtkTotals)
-            totalEnemyAtk += Mathf.Max(0, kv.Value);
-
-        int incoming = Mathf.Max(0, totalEnemyAtk - Mathf.Max(0, playerDefTotal));
-
-        // === Player → Target (PlayerATK vs target DEF)
-        int playerDamage = 0;
-        if (currentTarget != null)
+        var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        var list = new List<SimpleCombatant>();
+        foreach (var sc in all)
         {
-            int targetDef = enemyDefTotals.TryGetValue(currentTarget, out var d) ? d : 0;
-            playerDamage = Mathf.Max(0, Mathf.Max(0, playerAtkTotal) - Mathf.Max(0, targetDef));
+            if (!sc) continue;
+            if (player && sc == player) continue;
+            if (sc.CurrentHP <= 0) continue;   // ölüleri alma (isteğe bağlı)
+            list.Add(sc);
         }
 
-        // Uygula
-        if (incoming > 0)
+        // >>> SIRALAMA: spawn index'e göre artan (1→2→3)
+        list.Sort((a,b) => GetSpawnOrderForEnemy(a).CompareTo(GetSpawnOrderForEnemy(b)));
+
+        enemies = list;
+
+        // CombatContext’e aktif düşman olarak ilkini koy (varsa)
+        var firstEnemy = enemies.Count > 0 ? enemies[0] : null;
+        if (firstEnemy != null)
+            ctx.SetEnemy(firstEnemy);
+
+        onLog?.Invoke($"[Coordinator] Enemies refreshed (ordered by spawn index). Count={enemies.Count}");
+    }
+    int GetSpawnOrderForEnemy(SimpleCombatant sc)
+    {
+        if (!sc) return int.MaxValue;
+        var meta = sc.GetComponent<EnemySpawnMeta>();
+        if (meta && meta.spawnIndex >= 0) return meta.spawnIndex;
+
+        // Meta yoksa en sona at (istersen en yakın spawnPoint'e göre tahmin de yapabiliriz)
+        return int.MaxValue;
+    }
+    IEnumerator ResolveAllAndCleanup()
+    {
+        // --- 1) PLAYER -> TARGET (önce oyuncu vurur) ---
+        if (currentTarget != null && currentTarget.CurrentHP > 0)
         {
-            player.CurrentHP -= incoming;
-            onLog?.Invoke($"You take {incoming} damage (Total Enemy ATK {totalEnemyAtk} - Your DEF {playerDefTotal}).");
+            int targetDef = enemyDefTotals.TryGetValue(currentTarget, out var d) ? Mathf.Max(0, d) : 0;
+            int playerDamage = Mathf.Max(0, Mathf.Max(0, playerAtkTotal) - targetDef);
+
+            yield return StartCoroutine(PlayAttackSequence(player, currentTarget, playerDamage, () =>
+            {
+                if (playerDamage > 0)
+                {
+                    currentTarget.CurrentHP -= playerDamage;
+                    onLog?.Invoke($"You dealt {playerDamage} to {currentTarget.name}.");
+                }
+                else
+                {
+                    onLog?.Invoke($"Your attack couldn’t pierce {currentTarget.name}'s defense.");
+                }
+            }));
         }
         else
         {
-            onLog?.Invoke($"You blocked all incoming damage! (Total Enemy ATK {totalEnemyAtk} - Your DEF {playerDefTotal}).");
+            onLog?.Invoke("No valid target for your attack.");
         }
 
-        if (currentTarget != null)
+        // --- 2) ENEMIES -> PLAYER (sonra düşmanlar sırayla, aralıklı) ---
+        int remainingDef = Mathf.Max(0, playerDefTotal);
+
+        // Son aktif düşmanın indeksini bul (spacing'i en sondan sonra koymamak için)
+        int lastActiveIdx = -1;
+        for (int i = enemies.Count - 1; i >= 0; i--)
         {
-            if (playerDamage > 0)
+            var e = enemies[i];
+            if (e && e.CurrentHP > 0) { lastActiveIdx = i; break; }
+        }
+
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            var e = enemies[i];
+            if (!e || e.CurrentHP <= 0) continue;
+
+            int enemyAtk = enemyAtkTotals.TryGetValue(e, out var atkVal) ? Mathf.Max(0, atkVal) : 0;
+
+            if (enemyAtk > 0)
             {
-                currentTarget.CurrentHP -= playerDamage;
-                onLog?.Invoke($"You dealt {playerDamage} to {currentTarget.name} (Your ATK {playerAtkTotal} - {currentTarget.name} DEF {enemyDefTotals[currentTarget]}).");
+                int effective = Mathf.Max(0, enemyAtk - remainingDef);
+                remainingDef = Mathf.Max(0, remainingDef - enemyAtk);
+
+                yield return StartCoroutine(PlayAttackSequence(e, player, effective, () =>
+                {
+                    if (effective > 0)
+                    {
+                        player.CurrentHP -= effective;
+                        onLog?.Invoke($"{e.name} hits you for {effective}.");
+                    }
+                    else
+                    {
+                        onLog?.Invoke($"{e.name}'s attack was blocked.");
+                    }
+                }));
             }
             else
             {
-                onLog?.Invoke($"Your attack couldn’t pierce {currentTarget.name}'s defense.");
+                // İstersen boş saldırıda da küçük bir anim oynatabilirsin:
+                // yield return StartCoroutine(PlayAttackSequence(e, player, 0));
+                onLog?.Invoke($"{e.name} attacks but has no effective attack.");
             }
+
+            // --- Araya bekleme ekle (son aktif düşmandan sonra bekleme yok) ---
+            if (i < lastActiveIdx && enemyAttackSpacing > 0f)
+                yield return new WaitForSeconds(enemyAttackSpacing);
         }
 
-        // Win/Lose kontrolü
+        // --- Win/Lose kontrolü ---
         if (CheckWinLose()) yield break;
 
-        // Yeni el hazırlığı
+        // --- Temizlik ve yeni el ---
         player.CurrentAttack = 0;
         foreach (var e in enemies) if (e) e.CurrentAttack = 0;
 
@@ -386,46 +475,53 @@ public class ActionCoordinator : MonoBehaviour
         enemies.RemoveAll(e => e == null);
         var aliveEnemies = enemies.Where(e => e.CurrentHP > 0).ToList();
 
-        if (player.CurrentHP <= 0 && aliveEnemies.Count > 0)
-        {
-            onLog?.Invoke("Game Over");
-            onGameOver?.Invoke();
-            return true;
-        }
-        if (aliveEnemies.Count == 0 && player.CurrentHP > 0)
-        {
-            onLog?.Invoke("Game Win!");
-            onGameWin?.Invoke();
-            return true;
-        }
-        if (player.CurrentHP <= 0 && aliveEnemies.Count == 0)
-        {
-            onLog?.Invoke("Draw! (both defeated)");
-            return true;
-        }
+        if (player.CurrentHP <= 0 && aliveEnemies.Count > 0) { onLog?.Invoke("Game Over"); onGameOver?.Invoke(); return true; }
+        if (aliveEnemies.Count == 0 && player.CurrentHP > 0) { onLog?.Invoke("Game Win!"); onGameWin?.Invoke(); return true; }
+        if (player.CurrentHP <= 0 && aliveEnemies.Count == 0) { onLog?.Invoke("Draw! (both defeated)"); return true; }
         return false;
     }
 
-    // CombatContext içindeki aktif düşmanı değiştirir
     void SwapCtxEnemy(SimpleCombatant newEnemy)
     {
         if (ctx == null || newEnemy == null) return;
-        ctx.SetEnemy(newEnemy); // CombatContext’e eklendiğini varsayıyoruz
+        ctx.SetEnemy(newEnemy);
     }
 
     public void SetThreshold(int value)
     {
         ctx.Threshold = Mathf.Max(5, value);
         ctx.OnLog?.Invoke($"[Rule] Threshold → {ctx.Threshold}");
-
         foreach (var kv in ctx.Phases)
             ctx.OnProgress?.Invoke(kv.Key.Item1, kv.Key.Item2, kv.Value.Total, ctx.Threshold);
     }
+    [SerializeField, Min(0f)] float animImpactTimeout = 2.0f; // opsiyonel güvenlik
+    [SerializeField, Min(0f)] float animDoneTimeout   = 2.0f;
 
-    // === Opsiyonel: Debug ===
-    [ContextMenu("DBG Print State")]
-    void DebugPrintState()
+    IEnumerator PlayAttackSequence(SimpleCombatant attacker, SimpleCombatant defender, int damage, System.Action onImpact = null)
     {
-        Debug.Log($"[CoordinatorDBG] step={step}, waitingForTarget={waitingForTarget}, isBusy={isBusy}, pDEF={playerDefTotal}, pATK={playerAtkTotal}, target={(currentTarget? currentTarget.name : "null")}");
+        // 1) Önce bayrakları temizle
+        _animImpact = false;
+        _animDone   = false;
+
+        // 2) Sonra isteği yayınla (YANLIŞ SIRA buydu)
+        onAttackAnimationRequest?.Invoke(attacker, defender, damage);
+
+        // 3) Impact bekle (timeout'lu)
+        float t = animImpactTimeout;
+        while (!_animImpact && t > 0f)
+        {
+            t -= Time.deltaTime;
+            yield return null;
+        }
+        // Eğer hiç dinleyici yoksa veya kaçırdıysak, yine de ilerle
+        onImpact?.Invoke();
+
+        // 4) Bitışı bekle (timeout'lu)
+        t = animDoneTimeout;
+        while (!_animDone && t > 0f)
+        {
+            t -= Time.deltaTime;
+            yield return null;
+        }
     }
 }
