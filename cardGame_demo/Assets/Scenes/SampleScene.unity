@@ -487,9 +487,9 @@ MonoBehaviour:
   database: {fileID: 11400000, guid: bcdc83852971f9c4b969644209576054, type: 2}
   destroyExistingOnPoint: 1
   pickRandom: 1
-  testSpawnCount: 1
-  spawnOnToggle: 0
-  autoResetToggle: 1
+  testSpawnCount: 2
+  spawnOnToggle: 1
+  autoResetToggle: 0
   useDelayForTest: 0
   testDelayBetween: 0.2
   onEnemiesSpawned:
@@ -1957,6 +1957,7 @@ MonoBehaviour:
   onTargetChanged:
     m_PersistentCalls:
       m_Calls: []
+  inputDebounceSeconds: 0.12
   onAttackAnimationRequest:
     m_PersistentCalls:
       m_Calls: []
