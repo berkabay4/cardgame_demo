@@ -8,13 +8,13 @@ public class RelicTooltip : MonoBehaviour
     public static RelicTooltip Instance { get; private set; }
 
     [Header("Refs")]
-    [SerializeField] private Canvas rootCanvas;          // aynı UI canvas
-    [SerializeField] private RectTransform panel;        // tooltip paneli
+    [SerializeField] private Canvas rootCanvas;
+    [SerializeField] private RectTransform panel;
     [SerializeField] private TextMeshProUGUI titleText;
     [SerializeField] private TextMeshProUGUI descText;
     [SerializeField] private Image iconImage;
 
-    private void Awake()
+    void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
@@ -30,14 +30,13 @@ public class RelicTooltip : MonoBehaviour
         Instance.titleText.text = d.displayName;
         Instance.iconImage.sprite = d.icon;
 
-        // Basit örnek: {stacks} placeholder'ını destekleyelim
         string desc = d.descriptionTemplate;
         desc = desc.Replace("{stacks}", runtime.stacks.ToString());
         Instance.descText.text = desc;
 
         Instance.panel.gameObject.SetActive(true);
 
-        // Konum: target’ın sağ üstü
+        // konum: hedefin sağ üstü
         Vector3[] corners = new Vector3[4];
         target.GetWorldCorners(corners);
         var worldPos = corners[2]; // top-right

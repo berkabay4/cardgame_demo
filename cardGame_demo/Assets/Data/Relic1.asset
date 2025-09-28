@@ -15,15 +15,18 @@ MonoBehaviour:
   relicId: 01
   displayName: relic01
   descriptionTemplate: 
-  icon: {fileID: 0}
+  icon: {fileID: -942136525895816471, guid: 3421078018dc3934a8c1ab3b7bf89aa0, type: 3}
   rarity: 0
   stackRule: 1
   maxStacks: 99
   effects:
-  - rid: -2
-  - rid: -2
+  - rid: 4273640713365487686
   references:
     version: 2
     RefIds:
-    - rid: -2
-      type: {class: , ns: , asm: }
+    - rid: 4273640713365487686
+      type: {class: AttackRangeBonusEffect, ns: , asm: Assembly-CSharp}
+      data:
+        flatBonusPerStack: 5
+        applyToPlayer: 1
+        onlyOnPlayerTurn: 1

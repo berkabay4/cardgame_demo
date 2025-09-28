@@ -7,40 +7,75 @@ using UnityEngine.EventSystems;
 public class RelicIconView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("Refs")]
-    [SerializeField] private Image iconImage;        // ikon görseli
-    [SerializeField] private TextMeshProUGUI stackText; // köşedeki sayı (1 ise gizle)
-    [SerializeField] private GameObject stackBadge;  // rozet objesi (opsiyonel)
+    [SerializeField] private Image iconImage;                 // ZORUNLU: Prefab'da ataman en sağlıklısı
+    [SerializeField] private GameObject stackBadge;           // opsiyonel
+    [SerializeField] private TextMeshProUGUI stackText;       // opsiyonel
+    [Header("Fallbacks")]
+    [SerializeField] private Sprite placeholderIcon;          // opsiyonel: icon yoksa
 
-    private RelicRuntime _runtime;
+    private RelicRuntime runtime;
 
-    private void Reset()
+    void Reset()
     {
-        if (!iconImage) iconImage = GetComponentInChildren<Image>();
-        if (!stackText && stackBadge) stackText = stackBadge.GetComponentInChildren<TextMeshProUGUI>();
+        // Otomatik bulma (ama prefab'da açıkça atamanı öneririm)
+        if (!iconImage) iconImage = GetComponentInChildren<Image>(true);
+        if (!stackText && stackBadge) stackText = stackBadge.GetComponentInChildren<TextMeshProUGUI>(true);
     }
 
-    public void Bind(RelicRuntime runtime)
+    public void Bind(RelicRuntime r)
     {
-        _runtime = runtime;
+        runtime = r;
+
+        // Güçlü null guard
+        if (runtime == null)
+        {
+            Debug.LogWarning("[RelicIconView] Bind null runtime.");
+            SetIcon(placeholderIcon);
+            SetStack(0);
+            return;
+        }
 
         var def = runtime.def;
-        if (iconImage) iconImage.sprite = def.icon;
-
-        if (stackText)
+        if (def == null)
         {
-            bool show = runtime.stacks > 1;
-            stackText.text = show ? runtime.stacks.ToString() : string.Empty;
-            if (stackBadge) stackBadge.SetActive(show);
+            Debug.LogWarning("[RelicIconView] RelicRuntime.def is null.");
+            SetIcon(placeholderIcon);
+            SetStack(runtime.stacks);
+            return;
         }
+
+        // Icon
+        SetIcon(def.icon != null ? def.icon : placeholderIcon);
+
+        // Stack
+        SetStack(runtime.stacks);
     }
 
-    public void OnPointerEnter(PointerEventData eventData)
+    private void SetIcon(Sprite s)
     {
-        if (_runtime == null) return;
-        RelicTooltip.ShowFor(_runtime, (RectTransform)transform);
+        if (!iconImage)
+        {
+            Debug.LogWarning($"[RelicIconView] iconImage missing on {name}. Assign in prefab.");
+            return;
+        }
+        iconImage.sprite = s;
+        iconImage.enabled = (s != null);
     }
 
-    public void OnPointerExit(PointerEventData eventData)
+    private void SetStack(int stacks)
+    {
+        bool show = stacks > 1;
+        if (stackBadge) stackBadge.SetActive(show);
+        if (stackText)  stackText.text = show ? stacks.ToString() : string.Empty;
+    }
+
+    public void OnPointerEnter(PointerEventData e)
+    {
+        if (runtime?.def == null) return;
+        RelicTooltip.ShowFor(runtime, (RectTransform)transform);
+    }
+
+    public void OnPointerExit(PointerEventData e)
     {
         RelicTooltip.Hide();
     }

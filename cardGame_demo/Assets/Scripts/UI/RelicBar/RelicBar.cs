@@ -6,26 +6,26 @@ using System.Collections.Generic;
 public class RelicBar : MonoBehaviour
 {
     [Header("Refs")]
-    [SerializeField] private RelicManager relics;                 // otomatik bulunur
-    [SerializeField] private RectTransform content;               // Horizontal/Grid parent
-    [SerializeField] private RelicIconView iconPrefab;            // tek ikon prefab
+    [SerializeField] private RelicManager relics;      // auto bulunur
+    [SerializeField] private RectTransform content;    // bu objenin RT'si olabilir
+    [SerializeField] private RelicIconView iconPrefab; // bir adet ikon prefab
 
-    [Header("Layout (Optional)")]
+    [Header("Layout")]
     [SerializeField] private bool autoAddLayoutGroup = true;
     [SerializeField] private Vector2 padding = new Vector2(6, 6);
     [SerializeField] private float spacing = 6f;
 
-    // pool
-    private readonly List<RelicIconView> _pool = new();
-    private int _activeCount = 0;
+    // simple pool
+    private readonly List<RelicIconView> pool = new();
+    private int activeCount = 0;
 
-    private void Reset()
+    void Reset()
     {
         if (!relics) relics = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
         if (!content) content = GetComponent<RectTransform>();
     }
 
-    private void Awake()
+    void Awake()
     {
         if (!relics) relics = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
         if (!content) content = GetComponent<RectTransform>();
@@ -35,57 +35,50 @@ public class RelicBar : MonoBehaviour
             var hg = content.gameObject.AddComponent<HorizontalLayoutGroup>();
             hg.padding = new RectOffset((int)padding.x, (int)padding.x, (int)padding.y, (int)padding.y);
             hg.spacing = spacing;
-            hg.childAlignment = TextAnchor.MiddleLeft;
+            hg.childAlignment = TextAnchor.MiddleLeft;     // ← soldan sağa
             hg.childForceExpandWidth = false;
             hg.childForceExpandHeight = false;
         }
     }
 
-    private void OnEnable()
+    void OnEnable()
     {
-        Subscribe(true);
+        if (relics != null) relics.OnRelicsChanged += HandleRelicsChanged;
         Rebuild();
     }
 
-    private void OnDisable() => Subscribe(false);
-
-    private void Subscribe(bool on)
+    void OnDisable()
     {
-        if (!relics) return;
-        if (on) relics.OnRelicsChanged += HandleRelicsChanged;
-        else    relics.OnRelicsChanged -= HandleRelicsChanged;
+        if (relics != null) relics.OnRelicsChanged -= HandleRelicsChanged;
     }
 
-    private void HandleRelicsChanged() => Rebuild();
+    void HandleRelicsChanged() => Rebuild();
 
     public void Rebuild()
     {
-        if (!relics || iconPrefab == null || content == null) return;
+        if (relics == null || iconPrefab == null || content == null) return;
 
-        var list = relics.All; // IEnumerable<RelicRuntime>
+        // kapat
+        for (int i = 0; i < activeCount; i++) pool[i].gameObject.SetActive(false);
+        activeCount = 0;
 
-        // Açık ikonları kapat
-        for (int i = 0; i < _activeCount; i++) _pool[i].gameObject.SetActive(false);
-        _activeCount = 0;
-
-        foreach (var rr in list)
+        // sırayı koru (Acquire sırası). İstersen rarity’ye göre OrderBy yapabilirsin.
+        foreach (var rr in relics.All)
         {
             var view = GetView();
             view.gameObject.SetActive(true);
             view.Bind(rr);
-            _activeCount++;
+            activeCount++;
         }
     }
 
-    private RelicIconView GetView()
+    RelicIconView GetView()
     {
-        // Havuzda pasif var mı?
-        for (int i = 0; i < _pool.Count; i++)
-            if (!_pool[i].gameObject.activeSelf) return _pool[i];
+        for (int i = 0; i < pool.Count; i++)
+            if (!pool[i].gameObject.activeSelf) return pool[i];
 
-        // Yoksa oluştur
         var inst = Instantiate(iconPrefab, content);
-        _pool.Add(inst);
+        pool.Add(inst);
         return inst;
     }
 }
