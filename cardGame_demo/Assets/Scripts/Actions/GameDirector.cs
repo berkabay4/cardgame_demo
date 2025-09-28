@@ -160,6 +160,7 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         // FallBack: boş default deste
         var d = new DeckService();
         d.RebuildAndShuffle();
+         Debug.Log("sa2");
         return d;
     }
     void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;

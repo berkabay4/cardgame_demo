@@ -1,8 +1,8 @@
 // StartTurnAction.cs
 public class StartTurnAction : IGameAction
 {
-    readonly bool reshuffleWhenLow;
-    readonly int  lowDeckCount;
+    readonly bool reshuffleWhenLow;  // artık kullanılmıyor ama imza korunuyor
+    readonly int  lowDeckCount;      // aynı şekilde
 
     public StartTurnAction(bool r, int l)
     {
@@ -12,19 +12,8 @@ public class StartTurnAction : IGameAction
 
     public void Execute(CombatContext ctx)
     {
-        // 1) Tüm desteler için low-reshuffle
-        if (reshuffleWhenLow)
-        {
-            foreach (var deck in ctx.AllDecks())
-            {
-                if (deck == null) continue;
-                if (deck.Count <= lowDeckCount)
-                {
-                    deck.RebuildAndShuffle();
-                    ctx.OnLog?.Invoke("[Deck] Rebuilt+Shuffled (low count)");
-                }
-            }
-        }
+        // 1) DESTELERE DOKUNMA — low-count reshuffle YOK.
+        //    Sadece deck boşaldığında (Count == 0) DrawCardAction içinde karışacak.
 
         // 2) Bütün faz accumulator'larını sıfırla
         foreach (var acc in ctx.Phases.Values)

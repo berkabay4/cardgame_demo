@@ -1,6 +1,7 @@
 // CombatantDeck.cs
 using UnityEngine;
 using System.Collections.Generic;
+using SingularityGroup.HotReload;
 
 [DisallowMultipleComponent]
 public class CombatantDeck : MonoBehaviour
@@ -18,7 +19,11 @@ public class CombatantDeck : MonoBehaviour
         {
             deck.ClearAndAdd(initialCards); // Eğer yoksa: önce deck.Clear(); sonra tek tek deck.Add(card);
         }
-        if (shuffleOnStart) deck.RebuildAndShuffle();
+        if (shuffleOnStart)
+        {
+            deck.RebuildAndShuffle();
+            Debug.Log("sa1");
+        }
         return deck;
     }
 }

@@ -23,6 +23,7 @@ public class DeckService : IDeckService
     {
         _rng = seed.HasValue ? new System.Random(seed.Value) : new System.Random();
         RebuildAndShuffle();
+         Debug.Log("sa4");
     }
     public void ClearAndAdd(IEnumerable<Card> cards)
     {
@@ -67,6 +68,7 @@ public class DeckService : IDeckService
         {
             Debug.Log("[Deck] Bitti → yeniden kuruluyor.");
             RebuildAndShuffle();
+             Debug.Log("sa5");
         }
 
         var c = _cards[^1];
