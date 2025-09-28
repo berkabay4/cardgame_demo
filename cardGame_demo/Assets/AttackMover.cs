@@ -29,11 +29,11 @@ public class AttackMover : MonoBehaviour
     IEnumerator SubscribeWhenReady()
     {
         // Coordinator hazır olana kadar bekle (ilk frame kaçırmalarını önler)
-        while (ActionCoordinator.Instance == null) yield return null;
+        while (GameDirector.Instance == null) yield return null;
 
         // Çift abonelik olmasın diye önce temizlik
-        ActionCoordinator.Instance.onAttackAnimationRequest.RemoveListener(OnAttackRequested);
-        ActionCoordinator.Instance.onAttackAnimationRequest.AddListener(OnAttackRequested);
+        GameDirector.Instance.onAttackAnimationRequest.RemoveListener(OnAttackRequested);
+        GameDirector.Instance.onAttackAnimationRequest.AddListener(OnAttackRequested);
 
         // Basit bir test logu (isteğe bağlı)
         // Debug.Log("[AttackMover] Subscribed to onAttackAnimationRequest");
@@ -41,8 +41,8 @@ public class AttackMover : MonoBehaviour
 
     void OnDisable()
     {
-        if (ActionCoordinator.Instance)
-            ActionCoordinator.Instance.onAttackAnimationRequest.RemoveListener(OnAttackRequested);
+        if (GameDirector.Instance)
+            GameDirector.Instance.onAttackAnimationRequest.RemoveListener(OnAttackRequested);
         running.Clear();
     }
 
@@ -50,7 +50,7 @@ public class AttackMover : MonoBehaviour
     {
         if (!attacker || !defender)
         {
-            ActionCoordinator.Instance?.AnimReportDone();
+            GameDirector.Instance?.AnimReportDone();
             return;
         }
 
@@ -60,10 +60,10 @@ public class AttackMover : MonoBehaviour
         if (running.TryGetValue(a, out var co) && co != null) StopCoroutine(co);
 
         running[a] = StartCoroutine(DoDash(a, d,
-            onImpact: () => ActionCoordinator.Instance?.AnimReportImpact(),
+            onImpact: () => GameDirector.Instance?.AnimReportImpact(),
             onDone: () =>
             {
-                ActionCoordinator.Instance?.AnimReportDone();
+                GameDirector.Instance?.AnimReportDone();
                 running.Remove(a);
             }));
     }

@@ -5,7 +5,7 @@ using UnityEngine;
 public class PlayerProgressRouter : MonoBehaviour
 {
     [Header("Refs (auto if empty)")]
-    [SerializeField] ActionCoordinator coordinator;
+    [SerializeField] GameDirector gameDirector;
     [SerializeField] TextMeshProUGUI defText; // Canvas/child[0]
     [SerializeField] TextMeshProUGUI atkText; // Canvas/child[1]
 
@@ -20,27 +20,27 @@ public class PlayerProgressRouter : MonoBehaviour
 
     void Awake()
     {
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
         if (!defText || !atkText) AutoWire();
     }
 
     void OnEnable()
     {
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
-        if (coordinator)
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (gameDirector)
         {
-            coordinator.onProgress.AddListener(OnProgress);
-            coordinator.onRoundStarted.AddListener(OnRoundStarted);
+            gameDirector.onProgress.AddListener(OnProgress);
+            gameDirector.onRoundStarted.AddListener(OnRoundStarted);
         }
         InitToZero();
     }
 
     void OnDisable()
     {
-        if (coordinator)
+        if (gameDirector)
         {
-            coordinator.onProgress.RemoveListener(OnProgress);
-            coordinator.onRoundStarted.RemoveListener(OnRoundStarted);
+            gameDirector.onProgress.RemoveListener(OnProgress);
+            gameDirector.onRoundStarted.RemoveListener(OnRoundStarted);
         }
     }
 
@@ -61,13 +61,13 @@ public class PlayerProgressRouter : MonoBehaviour
             if (!atkText) atkText = canvas.GetChild(1).GetComponentInChildren<TextMeshProUGUI>(true);
         }
 
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
     }
 
     void InitToZero()
     {
-        if (defText) defText.SetText(format, 0, coordinator ? coordinator.GetThresholdSafe() : 21);
-        if (atkText) atkText.SetText(format, 0, coordinator ? coordinator.GetThresholdSafe() : 21);
+        if (defText) defText.SetText(format, 0, gameDirector ? gameDirector.GetThresholdSafe() : 21);
+        if (atkText) atkText.SetText(format, 0, gameDirector ? gameDirector.GetThresholdSafe() : 21);
     }
 
     void OnRoundStarted()

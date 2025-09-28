@@ -5,7 +5,7 @@ using UnityEngine;
 public class EnemyProgressRouter : MonoBehaviour
 {
     [Header("Refs (auto if empty)")]
-    [SerializeField] ActionCoordinator coordinator;
+    [SerializeField] GameDirector gameDirector;
     [SerializeField] SimpleCombatant self;
     [SerializeField] TextMeshProUGUI defText; // Canvas/child[0]
     [SerializeField] TextMeshProUGUI atkText; // Canvas/child[1]
@@ -26,19 +26,19 @@ public class EnemyProgressRouter : MonoBehaviour
     void Awake()
     {
         if (!self) self = GetComponent<SimpleCombatant>();
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
         if (!defText || !atkText) AutoWire();
     }
 
     void OnEnable()
     {
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
-        if (coordinator)
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (gameDirector)
         {
-            coordinator.onProgress.AddListener(OnProgress);
-            coordinator.onRoundStarted.AddListener(OnRoundStarted);
-            coordinator.onEnemyTurnIndexChanged.AddListener(OnEnemyTurnIndexChanged);
-            coordinator.onEnemyPhaseEnded.AddListener(OnEnemyPhaseEnded);   // YENİ
+            gameDirector.onProgress.AddListener(OnProgress);
+            gameDirector.onRoundStarted.AddListener(OnRoundStarted);
+            gameDirector.onEnemyTurnIndexChanged.AddListener(OnEnemyTurnIndexChanged);
+            gameDirector.onEnemyPhaseEnded.AddListener(OnEnemyPhaseEnded);   // YENİ
         }
         InitToZero();                // ilk açılışta 0’a çek
         _defLocked = _atkLocked = -1;
@@ -46,12 +46,12 @@ public class EnemyProgressRouter : MonoBehaviour
 
     void OnDisable()
     {
-        if (coordinator)
+        if (gameDirector)
         {
-            coordinator.onProgress.RemoveListener(OnProgress);
-            coordinator.onRoundStarted.RemoveListener(OnRoundStarted);
-            coordinator.onEnemyTurnIndexChanged.RemoveListener(OnEnemyTurnIndexChanged);
-            coordinator.onEnemyPhaseEnded.RemoveListener(OnEnemyPhaseEnded); // YENİ
+            gameDirector.onProgress.RemoveListener(OnProgress);
+            gameDirector.onRoundStarted.RemoveListener(OnRoundStarted);
+            gameDirector.onEnemyTurnIndexChanged.RemoveListener(OnEnemyTurnIndexChanged);
+            gameDirector.onEnemyPhaseEnded.RemoveListener(OnEnemyPhaseEnded); // YENİ
         }
     }
 
@@ -68,12 +68,12 @@ public class EnemyProgressRouter : MonoBehaviour
             if (!atkText) atkText = canvas.GetChild(1).GetComponentInChildren<TextMeshProUGUI>(true);
         }
 
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
     }
 
     void InitToZero()
     {
-        int max = coordinator ? coordinator.GetThresholdSafe() : 21;
+        int max = gameDirector ? gameDirector.GetThresholdSafe() : 21;
         if (defText) defText.SetText(format, 0, max);
         if (atkText) atkText.SetText(format, 0, max);
     }
@@ -95,7 +95,7 @@ public class EnemyProgressRouter : MonoBehaviour
     {
         if (enemy != self) return;
 
-        int max = coordinator ? coordinator.GetThresholdSafe() : 21;
+        int max = gameDirector ? gameDirector.GetThresholdSafe() : 21;
 
         if (phase == PhaseKind.Defense)
         {

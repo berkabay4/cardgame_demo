@@ -5,31 +5,33 @@ using UnityEngine.EventSystems;
 public class EnemyClickTarget : MonoBehaviour, IPointerClickHandler
 {
     [SerializeField] SimpleCombatant self;
-    [SerializeField] ActionCoordinator coordinator;
+    [SerializeField] GameDirector coordinator;
+
+    void Awake()
+    {
+        if (!self) self = GetComponent<SimpleCombatant>();
+    }
 
     void Start()
     {
-        coordinator ??= ActionCoordinator.Instance 
-                     ?? FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
-        if (!self) self = GetComponent<SimpleCombatant>();
+        coordinator ??= GameDirector.Instance 
+                     ?? FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (!self || !coordinator) return;
+        if (eventData.button != PointerEventData.InputButton.Left) return;
+        if (!self || !coordinator || coordinator.State == null) return;
 
-        Debug.Log($"[EnemyClickTarget] Click on {name}. waiting={coordinatorWaiting} step={coordinatorStep}");
-        var ok = coordinator.SelectTargetSafe(self);
-        if (!ok) Debug.Log("[EnemyClickTarget] SelectTargetSafe ignored (not waiting or invalid target).");
+        // BattleState üzerinden güvenli okuma
+        var state = coordinator.State;
+
+        Debug.Log($"[EnemyClickTarget] Click on {name}. waiting={state.WaitingForTarget} step={state.Step}");
+
+        // Sadece SelectTarget adımında ve hedef beklenirken tıklamayı işle
+        if (state.Step != TurnStep.SelectTarget || !state.WaitingForTarget)
+            return;
+
+        coordinator.SelectTarget(self);
     }
-
-    // küçük yardımcılar (sadece debug için)
-    bool coordinatorWaiting => coordinator && 
-        (bool)coordinator.GetType().GetField("waitingForTarget", 
-        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(coordinator);
-
-    TurnStep coordinatorStep => coordinator ? 
-        (TurnStep)coordinator.GetType().GetField("step", 
-        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(coordinator)
-        : default;
 }

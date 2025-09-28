@@ -11,7 +11,7 @@ public class TurnButtonsController : MonoBehaviour
 
     [Header("Optional")]
     [Tooltip("Boş bırakıldıysa sahnede otomatik bulmaya çalışır.")]
-    [SerializeField] private ActionCoordinator coordinator;
+    [SerializeField] private GameDirector gameDirector;
 
     [Tooltip("Start → StartGame, Draw → OnDrawClicked, Accept → OnAcceptClicked bağla.")]
     [SerializeField] private bool autoWireOnClick = true;
@@ -21,7 +21,7 @@ public class TurnButtonsController : MonoBehaviour
     void Reset()
     {
         // Inspector’da kolay doldurma
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
         if (!startButton)  startButton  = transform.Find("Start") ?.GetComponent<Button>();
         if (!drawButton)   drawButton   = transform.Find("Draw")  ?.GetComponent<Button>();
         if (!acceptButton) acceptButton = transform.Find("Accept")?.GetComponent<Button>();
@@ -29,7 +29,7 @@ public class TurnButtonsController : MonoBehaviour
 
     void Awake()
     {
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
 
         // İlk durumda: oyun başlamadı → sadece Start açık
         SetBeforeStartUI();
@@ -40,18 +40,18 @@ public class TurnButtonsController : MonoBehaviour
 
     void OnEnable()
     {
-        if (!coordinator) coordinator = FindFirstObjectByType<ActionCoordinator>(FindObjectsInactive.Include);
-        if (!coordinator) return;
+        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!gameDirector) return;
 
-        coordinator.onGameStarted.AddListener(OnGameStarted);
-        coordinator.onRoundStarted.AddListener(OnRoundStarted);
+        gameDirector.onGameStarted.AddListener(OnGameStarted);
+        gameDirector.onRoundStarted.AddListener(OnRoundStarted);
     }
 
     void OnDisable()
     {
-        if (!coordinator) return;
-        coordinator.onGameStarted.RemoveListener(OnGameStarted);
-        coordinator.onRoundStarted.RemoveListener(OnRoundStarted);
+        if (!gameDirector) return;
+        gameDirector.onGameStarted.RemoveListener(OnGameStarted);
+        gameDirector.onRoundStarted.RemoveListener(OnRoundStarted);
     }
 
     void WireClicks()
@@ -65,20 +65,20 @@ public class TurnButtonsController : MonoBehaviour
                 // UI hemen güncellensin
                 SetInTurnUI();
                 // Koordinatöre başlat de
-                coordinator?.StartGame();
+                gameDirector?.StartGame();
             });
         }
 
         if (drawButton)
         {
             drawButton.onClick.RemoveAllListeners();
-            drawButton.onClick.AddListener(() => coordinator?.OnDrawClicked());
+            drawButton.onClick.AddListener(() => gameDirector?.OnDrawClicked());
         }
 
         if (acceptButton)
         {
             acceptButton.onClick.RemoveAllListeners();
-            acceptButton.onClick.AddListener(() => coordinator?.OnAcceptClicked());
+            acceptButton.onClick.AddListener(() => gameDirector?.OnAcceptClicked());
         }
     }
 
