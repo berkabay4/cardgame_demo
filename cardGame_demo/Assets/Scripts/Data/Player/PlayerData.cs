@@ -19,7 +19,8 @@ public class PlayerData : ScriptableObject
 
     [Header("Rules")]
     [Tooltip("BlackJack üst sınırı (default 21)")]
-    public int maxRange = 21;
+    public int maxAttackRange = 21;
+    public int maxDefenceRange = 21;
 
     [Header("Optional")]
     [Tooltip("Sahneye atılacak prefab (SimpleCombatant içerir). Opsiyonel.")]
@@ -30,7 +31,7 @@ public class PlayerData : ScriptableObject
     {
         // Negatif/uygunsuz değerleri toparla
         if (maxHealth < 1) maxHealth = 1;
-        if (maxRange  < 5) maxRange  = 5; // oyunun altında anlamsızsa min 5'te tut
+
     }
 #endif
 }

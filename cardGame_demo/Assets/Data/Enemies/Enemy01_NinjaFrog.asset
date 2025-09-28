@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 805ea3f0fc45cd444a52fac847de872c, type: 3}
   m_Name: Enemy01_NinjaFrog
   m_EditorClassIdentifier: 
-  enemyName: NinjaFrog
+  enemyName: Enemy_NinjaFrog
   enemyId: enemy_001
   enemySprite: {fileID: -6367560908665664636, guid: cd947491a13509945aa1b644f9db3ef2, type: 3}
   maxHealth: 60

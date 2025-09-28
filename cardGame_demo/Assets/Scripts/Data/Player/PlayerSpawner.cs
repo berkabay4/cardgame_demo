@@ -131,7 +131,7 @@ public class PlayerSpawner : MonoBehaviour
         Debug.Log($"[PlayerSpawner] Player deck created. Count:{owner.Deck.Count}");
         // 7) Log
         if (PlayerStats)
-            Debug.Log($"[PlayerSpawner] Applied PlayerData → name:{selectedPlayer.playerName}, HP:{PlayerStats.CurrentHealth}/{PlayerStats.MaxHealth}, MaxRange:{PlayerStats.MaxRange}");
+            Debug.Log($"[PlayerSpawner] Applied PlayerData → name:{selectedPlayer.playerName}, HP:{PlayerStats.CurrentHealth}/{PlayerStats.MaxHealth}, MaxDefenseRange:{PlayerStats.MaxDefenseRange}, MaxAttackRange:{PlayerStats.MaxAttackRange}");
         else if (Combatant)
             Debug.Log($"[PlayerSpawner] Applied PlayerData (fallback) → name:{selectedPlayer.playerName}, HP:{Combatant.CurrentHP}/{Combatant.MaxHP}");
         else

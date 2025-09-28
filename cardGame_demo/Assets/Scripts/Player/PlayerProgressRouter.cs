@@ -66,10 +66,17 @@ public class PlayerProgressRouter : MonoBehaviour
 
     void InitToZero()
     {
-        if (defText) defText.SetText(format, 0, gameDirector ? gameDirector.GetThresholdSafe() : 21);
-        if (atkText) atkText.SetText(format, 0, gameDirector ? gameDirector.GetThresholdSafe() : 21);
-    }
+        if (!gameDirector)
+            gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
 
+        var ctx = (gameDirector != null) ? gameDirector.Ctx : null;
+
+        int defMax = (ctx != null) ? ctx.GetThreshold(Actor.Player, PhaseKind.Defense) : 21;
+        int atkMax = (ctx != null) ? ctx.GetThreshold(Actor.Player, PhaseKind.Attack)  : 21;
+
+        if (defText) defText.SetText(format, 0, defMax);
+        if (atkText) atkText.SetText(format, 0, atkMax);
+    }
     void OnRoundStarted()
     {
         InitToZero();

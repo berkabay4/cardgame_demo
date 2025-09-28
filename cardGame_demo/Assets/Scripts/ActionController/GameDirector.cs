@@ -164,35 +164,47 @@ void Awake()
         Ctx.OnCardDrawn.AddListener((a, k, c) => onCardDrawn?.Invoke(a, k, c));
         Ctx.OnLog.AddListener(s => onLog?.Invoke(s));
 
-        // Player deck
+        // --- Deck kayıtları ---
         var pDeck = BuildDeckForUnit(player);
         Ctx.RegisterDeck(player, pDeck);
-
-        // Enemy deck’leri
         foreach (var e in enemies.Where(x => x))
-        {
-            var eDeck = BuildDeckForUnit(e);
-            Ctx.RegisterDeck(e, eDeck);
-        }
+            Ctx.RegisterDeck(e, BuildDeckForUnit(e));
 
+        // >>>> YENİ: PlayerStats'tan per-phase threshold uygula (BAŞLANGIÇTA)
+        ApplyInitialPlayerThresholds();
+
+        // --- Sistemler ---
         Queue = new ActionQueue();
         State = new BattleState();
         _enemies = new EnemyRegistry(this, player, enemies, onLog);
-        _player = new PlayerPhaseController(this, Ctx, Queue, State,
-                                            onPlayerDefLocked, onPlayerAtkLocked, onLog);
-        _enemy = new EnemyPhaseController(this, Ctx, Queue, State,
-                                            onEnemyTurnIndexChanged, onEnemyPhaseStarted, onEnemyPhaseEnded,
-                                            enemyDrawDelayRange, onLog);
-        _targeting = new TargetingController(this, State, _enemies, onWaitingForTargetChanged, onTargetChanged, onLog);
-        _resolution = new ResolutionController(this, Ctx, State, _enemies,
-                                            enemyAttackSpacing, onLog, onRoundResolved,
-                                            onGameOver, onGameWin, this);
+        _player  = new PlayerPhaseController(this, Ctx, Queue, State, onPlayerDefLocked, onPlayerAtkLocked, onLog);
+        _enemy   = new EnemyPhaseController(this, Ctx, Queue, State, onEnemyTurnIndexChanged, onEnemyPhaseStarted, onEnemyPhaseEnded, enemyDrawDelayRange, onLog);
+        _targeting  = new TargetingController(this, State, _enemies, onWaitingForTargetChanged, onTargetChanged, onLog);
+        _resolution = new ResolutionController(this, Ctx, State, _enemies, enemyAttackSpacing, onLog, onRoundResolved, onGameOver, onGameWin, this);
         _input = new InputGate(inputDebounceSeconds);
-        
-        ContextReady?.Invoke();
-        _systemsReady = true;
 
+        _systemsReady = true;
+        ContextReady?.Invoke();
     }
+
+    void ApplyInitialPlayerThresholds()
+    {
+        if (!player) return;
+
+        var stats = player.GetComponentInChildren<PlayerStats>(true);
+        if (stats)
+        {
+            // PlayerData’da örn: DEF=30, ATK=15 → direkt uygula
+            Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  stats.MaxAttackRange);
+            Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Defense, stats.MaxDefenseRange);
+            onLog?.Invoke($"[Init] Player thresholds set from stats → ATK:{stats.MaxAttackRange} DEF:{stats.MaxDefenseRange}");
+        }
+        else
+        {
+            onLog?.Invoke("[Init] PlayerStats not found on player. Using fallback/global threshold.");
+        }
+    }
+
     IDeckService BuildDeckForUnit(SimpleCombatant unit)
     {
         if (!unit) return new DeckService(); // default
@@ -262,22 +274,23 @@ void Awake()
 
     public void SetThreshold(int value)
     {
-        Ctx.Threshold = Mathf.Max(5, value);
-        Ctx.OnLog?.Invoke($"[Rule] Threshold → {Ctx.Threshold}");
+        // Global fallback’ı güncelle
+        Ctx.SetGlobalThreshold(Mathf.Max(5, value), refreshProgress:false);
+        Ctx.OnLog?.Invoke($"[Rule] Threshold (global fallback) → {Ctx.Threshold}");
 
-        // Player için
-        var pDef = Ctx.TryGetAcc(Actor.Player, PhaseKind.Defense, createIfMissing:false, isPlayerFlagIfCreate:true);
-        if (pDef != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Defense, pDef.Total, Ctx.Threshold);
+        // Player
+        var pDef = Ctx.TryGetAcc(Actor.Player, PhaseKind.Defense, false, true);
+        if (pDef != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Defense, pDef.Total, Ctx.GetThreshold(Actor.Player, PhaseKind.Defense));
 
-        var pAtk = Ctx.TryGetAcc(Actor.Player, PhaseKind.Attack,  createIfMissing:false, isPlayerFlagIfCreate:true);
-        if (pAtk != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Attack,  pAtk.Total, Ctx.Threshold);
+        var pAtk = Ctx.TryGetAcc(Actor.Player, PhaseKind.Attack,  false, true);
+        if (pAtk != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Attack,  pAtk.Total, Ctx.GetThreshold(Actor.Player, PhaseKind.Attack));
 
-        // Enemy için (varsa)
-        var eDef = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Defense, createIfMissing:false, isPlayerFlagIfCreate:false);
-        if (eDef != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, eDef.Total, Ctx.Threshold);
+        // Enemy
+        var eDef = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Defense, false, false);
+        if (eDef != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, eDef.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Defense));
 
-        var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack,  createIfMissing:false, isPlayerFlagIfCreate:false);
-        if (eAtk != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  eAtk.Total, Ctx.Threshold);
+        var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack,  false, false);
+        if (eAtk != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  eAtk.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Attack));
     }
     public int GetThresholdSafe()
     {
@@ -296,7 +309,20 @@ void Awake()
         if (_enemy.Running != null) StopCoroutine(_enemy.Running);
         _enemy.Running = StartCoroutine(_enemy.PrecomputeBothPhasesThen(() => BeginPhase(TurnStep.PlayerDef)));
     }
+    public void SetPlayerPhaseThresholds(int atk, int def)
+    {
+        if (Ctx == null) return;
+        Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  atk);
+        Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Defense, def);
+    }
 
+    // Düşman için istersen:
+    public void SetEnemyPhaseThresholds(int atk, int def)
+    {
+        if (Ctx == null) return;
+        Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  atk);
+        Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, def);
+    }
     public void BeginPhase(TurnStep step)
     {
         State.SetStep(step, onStepChanged, onLog);

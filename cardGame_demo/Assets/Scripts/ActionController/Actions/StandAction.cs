@@ -4,18 +4,24 @@ public class StandAction : IGameAction
     readonly Actor actor;
     readonly PhaseKind phase;
 
-    public StandAction(Actor a, PhaseKind p) { actor = a; phase = p; }
+    public StandAction(Actor a, PhaseKind k) { actor = a; phase = k; }
 
     public void Execute(CombatContext ctx)
     {
         var acc = ctx.GetAcc(actor, phase);
-        acc.Stand(ctx.Threshold);
 
-        // UI/bridge event’lerini tetikle
-        ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.Threshold);
+        // Fazın eşiğini çek
+        int max = ctx.GetThreshold(actor, phase);
 
-        // (İstersen log)
-        ctx.OnLog?.Invoke($"[{actor}:{phase}] STAND → {acc.Total}");
+        // Sadece standing’e geçir; total'i SIFIRLAMA
+        if (!acc.IsStanding)
+        {
+            acc.Stand(max); // ← gerekli parametre
+        }
+
+        // UI: doğru eşikle yayınla
+        ctx.OnProgress?.Invoke(actor, phase, acc.Total, max);
+        ctx.OnLog?.Invoke($"[{actor}:{phase}] STAND at {acc.Total} (max {max})");
     }
 
     public string Describe() => $"Stand({actor},{phase})";

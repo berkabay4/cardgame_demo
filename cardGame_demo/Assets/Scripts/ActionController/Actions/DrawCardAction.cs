@@ -16,16 +16,14 @@ public class DrawCardAction : IGameAction
 
         var acc = ctx.GetAcc(actor, phase);
 
-        // Eğer bu faz zaten Stand/Bust durumundaysa kart çekmeyelim
+        // Faz zaten Stand/Bust ise UI'ı doğru eşikle yayınla
         if (acc.IsStanding || acc.IsBusted)
         {
             ctx.OnLog?.Invoke($"[Draw] {actor}:{phase} is already {(acc.IsStanding ? "STANDING" : "BUSTED")} → no draw.");
-            // UI senkron kalsın diye mevcut durumu yayınlayalım
-            ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.Threshold);
+            ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase)); // ← FIX
             return;
         }
 
-        // Boşsa hemen rebuild + aynı çağrıda çek
         if (deck.Count == 0)
         {
             deck.RebuildAndShuffle();
@@ -40,11 +38,15 @@ public class DrawCardAction : IGameAction
         int before = acc.Total;
         int beforeDeck = deck.Count;
 
-        acc.Hit(deck, ctx.Threshold); // kart çekmeyi her zaman Hit yapıyor
+        // Hesaplamayı doğru eşikle yapıyorsun:
+        acc.Hit(deck, ctx.GetThreshold(actor, phase));
 
         var lastCard = acc.Cards.Count > 0 ? acc.Cards[^1] : default;
         ctx.OnCardDrawn?.Invoke(actor, phase, lastCard);
-        ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.Threshold);
+
+        // UI: doğru eşik ile yayınla
+        ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase)); // ← FIX
+
         ctx.OnLog?.Invoke($"[{actor}:{phase}] {before} → {acc.Total} (Deck {beforeDeck}->{deck.Count})");
     }
 

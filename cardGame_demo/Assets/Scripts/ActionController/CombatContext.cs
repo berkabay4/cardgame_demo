@@ -5,14 +5,19 @@ using UnityEngine.Events;
 
 public class CombatContext
 {
-    // ==== Rules ====
+    // ==== Global fallback rule ====
     public int Threshold;
 
+    // ==== Per-phase thresholds (optional overrides) ====
+    // (Actor, Phase) -> threshold
+    private readonly Dictionary<(Actor, PhaseKind), int> _phaseThresholds = new();
+
     // ==== Units & Phases ====
-    // Actor -> Unit
-    private readonly Dictionary<Actor, SimpleCombatant> _units = new();
-    // (Actor, Phase) -> Accumulator
-    private readonly Dictionary<(Actor, PhaseKind), PhaseAccumulator> _phases = new();
+    private readonly Dictionary<Actor, SimpleCombatant> _units = new(); // Actor -> Unit
+    private readonly Dictionary<(Actor, PhaseKind), PhaseAccumulator> _phases = new(); // (Actor, Phase) -> Acc
+
+    // Expose read-only for existing callers (e.g. StartTurnAction)
+    public IReadOnlyDictionary<(Actor, PhaseKind), PhaseAccumulator> Phases => _phases;
 
     // ==== Decks ====
     // Unit -> Deck (her unit'in kendine ait runtime destesi)
@@ -31,7 +36,6 @@ public class CombatContext
     public IDeckService EnemyDeck  => GetDeckFor(Actor.Enemy);
 
     // ---- ctor ----
-    // Geriye uyumluluk için legacy paramı opsiyonel bıraktım.
     public CombatContext(int threshold, IDeckService _unusedLegacyDeck = null,
                          SimpleCombatant player = null, SimpleCombatant enemy = null)
     {
@@ -45,6 +49,55 @@ public class CombatContext
         EnsurePhase(Actor.Player, PhaseKind.Attack,  isPlayer: true);
         EnsurePhase(Actor.Enemy,  PhaseKind.Defense, isPlayer: false);
         EnsurePhase(Actor.Enemy,  PhaseKind.Attack,  isPlayer: false);
+    }
+
+    // ======================================================
+    // ================= Rules / Thresholds =================
+    // ======================================================
+    public int GetThreshold(Actor actor, PhaseKind phase)
+    {
+        return _phaseThresholds.TryGetValue((actor, phase), out var t) ? t : Threshold;
+    }
+
+    public void SetPhaseThreshold(Actor actor, PhaseKind phase, int value)
+    {
+        _phaseThresholds[(actor, phase)] = Mathf.Max(5, value);
+        // UI’yı mevcut toplam ile yeni eşik üzerinden güncelle
+        var acc = TryGetAcc(actor, phase, createIfMissing: false, isPlayerFlagIfCreate: actor == Actor.Player);
+        if (acc != null) OnProgress?.Invoke(actor, phase, acc.Total, GetThreshold(actor, phase));
+        OnLog?.Invoke($"[Rule] Threshold({actor},{phase}) → {GetThreshold(actor, phase)}");
+    }
+
+    /// <summary>Global Threshold’ı değiştirir (faz-spec override’ları korur).</summary>
+    public void SetGlobalThreshold(int value, bool refreshProgress = true)
+    {
+        Threshold = Mathf.Max(5, value);
+        OnLog?.Invoke($"[Rule] Global Threshold → {Threshold}");
+        if (refreshProgress)
+        {
+            foreach (var kv in _phases)
+            {
+                var (actor, phase) = kv.Key;
+                var acc = kv.Value;
+                OnProgress?.Invoke(actor, phase, acc.Total, GetThreshold(actor, phase));
+            }
+        }
+    }
+
+    /// <summary>İsteğe bağlı: tüm faz özel eşiklerini temizler.</summary>
+    public void ClearPhaseThresholdOverrides(bool refreshProgress = true)
+    {
+        _phaseThresholds.Clear();
+        OnLog?.Invoke("[Rule] Phase threshold overrides cleared.");
+        if (refreshProgress)
+        {
+            foreach (var kv in _phases)
+            {
+                var (actor, phase) = kv.Key;
+                var acc = kv.Value;
+                OnProgress?.Invoke(actor, phase, acc.Total, GetThreshold(actor, phase));
+            }
+        }
     }
 
     // ======================================================
@@ -87,12 +140,12 @@ public class CombatContext
     {
         if (!newEnemy) return;
 
-        // Eski enemy’i bul ve istenirse deck’i taşı
+        // Eski enemy’in deck’ini devret
         if (_units.TryGetValue(Actor.Enemy, out var oldEnemy) && oldEnemy && carryOverExistingEnemyDeck)
         {
             if (_decksByUnit.TryGetValue(oldEnemy, out var oldDeck) && oldDeck != null)
             {
-                _decksByUnit[newEnemy] = oldDeck;     // deck'i yeni enemy’e devret
+                _decksByUnit[newEnemy] = oldDeck;
                 _decksByUnit.Remove(oldEnemy);
                 OnLog?.Invoke($"[Ctx] Enemy deck moved: {oldEnemy.name} -> {newEnemy.name}");
             }
@@ -105,8 +158,8 @@ public class CombatContext
             _phases[(Actor.Enemy, PhaseKind.Defense)] = new PhaseAccumulator("E.DEF", isPlayer: false);
             _phases[(Actor.Enemy, PhaseKind.Attack)]  = new PhaseAccumulator("E.ATK",  isPlayer: false);
 
-            OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, 0, Threshold);
-            OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  0, Threshold);
+            OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, 0, GetThreshold(Actor.Enemy, PhaseKind.Defense));
+            OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  0, GetThreshold(Actor.Enemy, PhaseKind.Attack));
 
             OnLog?.Invoke($"[Ctx] Enemy accumulators reset for {newEnemy.name}");
         }
@@ -145,8 +198,8 @@ public class CombatContext
 
         if (log)
         {
-            OnProgress?.Invoke(actor, PhaseKind.Defense, 0, Threshold);
-            OnProgress?.Invoke(actor, PhaseKind.Attack,  0, Threshold);
+            OnProgress?.Invoke(actor, PhaseKind.Defense, 0, GetThreshold(actor, PhaseKind.Defense));
+            OnProgress?.Invoke(actor, PhaseKind.Attack,  0, GetThreshold(actor, PhaseKind.Attack));
             OnLog?.Invoke($"[Ctx] Phases reset for {actor}");
         }
     }
@@ -154,7 +207,6 @@ public class CombatContext
     // ======================================================
     // ==================== Decks API =======================
     // ======================================================
-    /// <summary>Unit referansıyla deck kaydı (spawn anında en sağlam yöntem).</summary>
     public void RegisterDeck(SimpleCombatant unit, IDeckService deck)
     {
         if (!unit || deck == null) return;
@@ -162,7 +214,6 @@ public class CombatContext
         OnLog?.Invoke($"[Ctx] Deck registered for unit: {unit.name}");
     }
 
-    /// <summary>Actor üzerinden deck set (unit zaten kayıtlıysa rahat).</summary>
     public void SetDeckFor(Actor actor, IDeckService deck)
     {
         if (!TryGetUnit(actor, out var unit) || unit == null || deck == null) return;
