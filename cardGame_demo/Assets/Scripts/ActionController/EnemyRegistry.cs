@@ -42,13 +42,16 @@ public class EnemyRegistry
             if (!sc) continue;
             // Deck kayıtlı değilse ekle
             var ctx = _host.Ctx;
-            if (!ctx.DecksByUnit.ContainsKey(sc))
+            var existing = ctx.GetDeckFor(sc);   // Context API: unit → deck
+            if (existing == null)
             {
+                // mevcut mimariyi bozmadan aynı private metoda reflection ile eriş
                 var deck = _host.GetType()
                     .GetMethod("BuildDeckForUnit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                     .Invoke(_host, new object[]{ sc }) as IDeckService;
 
-                ctx.RegisterDeck(sc, deck);
+                if (deck != null)
+                    ctx.RegisterDeck(sc, deck);  // Context API: register
             }
         }
         _log?.Invoke($"[Enemies] Refreshed (by spawn index). Count={All.Count}");

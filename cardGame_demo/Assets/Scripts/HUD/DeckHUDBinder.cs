@@ -49,10 +49,12 @@ public class DeckHUDBinder : MonoBehaviour
     void OnEnable()
     {
         StartCoroutine(BindWhenDirectorReady());
+        EnemySpawner.EnemiesSpawned += OnEnemiesSpawned; // spawn/refresh sonrası rebind
     }
 
     void OnDisable()
     {
+        EnemySpawner.EnemiesSpawned -= OnEnemiesSpawned;
         UnsubscribeDirectorEvents();
         if (_pollCo != null) { StopCoroutine(_pollCo); _pollCo = null; }
     }
@@ -61,12 +63,14 @@ public class DeckHUDBinder : MonoBehaviour
     {
         // Director oluşana kadar bekle
         while (Director == null) yield return null;
+        // Context oluşana kadar bekle
+        while (Director.Ctx == null) yield return null;
+
+        // Director event'ine (oyun start) abone ol – ek güvence
+        SubscribeDirectorEvents();
 
         // Deck’i bağla
         TryBindDeck();
-
-        // Event’lere abone ol (bir kez)
-        SubscribeDirectorEvents();
 
         // Periyodik fallback (spawn/reshuffle vb. için güvence)
         if (_pollCo == null) _pollCo = StartCoroutine(PollRoutine());
@@ -78,6 +82,7 @@ public class DeckHUDBinder : MonoBehaviour
     {
         if (_subscribed || Director == null) return;
         Director.onCardDrawn.AddListener(OnAnyCardDrawn);
+        Director.onGameStarted.AddListener(OnDirectorGameStarted);
         _subscribed = true;
     }
 
@@ -85,7 +90,22 @@ public class DeckHUDBinder : MonoBehaviour
     {
         if (!_subscribed || Director == null) { _subscribed = false; return; }
         Director.onCardDrawn.RemoveListener(OnAnyCardDrawn);
+        Director.onGameStarted.RemoveListener(OnDirectorGameStarted);
         _subscribed = false;
+    }
+
+    void OnDirectorGameStarted()
+    {
+        // Oyun başlarken context kayıtları tamamlanmış olur – rebind et
+        TryBindDeck();
+        UpdateLabel();
+    }
+
+    void OnEnemiesSpawned()
+    {
+        // Yeni düşmanlar/refresh sonrası – rebind et
+        TryBindDeck();
+        UpdateLabel();
     }
 
     void TryBindDeck()
@@ -94,12 +114,14 @@ public class DeckHUDBinder : MonoBehaviour
         _baseSize = 0;
         _lastCount = 0;
 
-        if (Director == null || Director.Ctx == null || owner == null) return;
+        if (Director?.Ctx == null || owner == null) return;
 
-        if (Director.Ctx.DecksByUnit.TryGetValue(owner, out var deck) && deck != null)
+        // Context API
+        var deck = Director.Ctx.GetDeckFor(owner);
+        if (deck != null)
         {
-            _deck = deck;
-            _baseSize  = deck.Count;
+            _deck      = deck;
+            _baseSize  = deck.Count;   // ilk “tam dolu” kabul
             _lastCount = _baseSize;
         }
     }

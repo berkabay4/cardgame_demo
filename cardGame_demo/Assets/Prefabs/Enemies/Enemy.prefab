@@ -612,6 +612,8 @@ GameObject:
   - component: {fileID: 540747059995386030}
   - component: {fileID: 2978311477843390898}
   - component: {fileID: 3478923218211279739}
+  - component: {fileID: 8830286263138758337}
+  - component: {fileID: -4672133133476110376}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Enemy
@@ -713,6 +715,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   self: {fileID: 2978311477843390898}
   coordinator: {fileID: 0}
+--- !u!114 &8830286263138758337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7984944881641689443}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a88b9301ea9c3eb43ba7872392a5cec9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &-4672133133476110376
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7984944881641689443}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b7b11c36f9dd4745a738d2a4409612f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  defaultThreshold: 21
 --- !u!1 &8605238606599505194
 GameObject:
   m_ObjectHideFlags: 0

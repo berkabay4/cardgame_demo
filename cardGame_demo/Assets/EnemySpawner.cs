@@ -12,12 +12,13 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private Transform parentForSpawned;
 
     [Header("Act & Source")]
-    [SerializeField] private Act currentAct = Act.Act1;        // ← bulunduğun act
-    [SerializeField] private EnemyDatabase database;           // ← tüm düşman dataları
+    [SerializeField] private Act currentAct = Act.Act1;        // bulunduğun act
+    [SerializeField] private EnemyDatabase database;           // tüm düşman dataları
 
     [Header("Options")]
     [SerializeField] private bool destroyExistingOnPoint = true;
     [SerializeField] private bool pickRandom = true;           // aynı act’te birden çok data varsa rastgele seç
+    [SerializeField] private bool registerToContext = true;    // true: son spawn edilen düşman CombatContext.Enemy olur
 
     [Header("Test (Inspector)")]
     [SerializeField, Min(0)] private int testSpawnCount = 1;
@@ -25,7 +26,7 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private bool autoResetToggle = true;
     [SerializeField] private bool useDelayForTest = false;
     [SerializeField, Min(0f)] private float testDelayBetween = 0.2f;
-
+    private readonly List<(SimpleCombatant sc, IDeckService deck)> _pendingCtxRegs = new();
     private bool _prevSpawnOnToggle;
 
     // ---- Events ----
@@ -57,16 +58,15 @@ public class EnemySpawner : MonoBehaviour
             var p = spawnPoints[i];
             if (!p) continue;
 
-            if (destroyExistingOnPoint)
-                DestroyChildrenOf(p);
+            if (destroyExistingOnPoint) DestroyChildrenOf(p);
 
             var data = PickEnemyDataForAct();
-            var go = SpawnFromData(p, data);
-            if (go)
-            {
-                spawned.Add(go);
-                onEnemySpawned?.Invoke(go);
-            }
+            var go   = SpawnFromData(p, data);
+            if (!go) continue;
+
+            SetupEnemyRuntime(go, data);   // <— DECK + CONTEXT burada
+            spawned.Add(go);
+            onEnemySpawned?.Invoke(go);
         }
 
         // kullanılmayan noktaları boşalt
@@ -80,7 +80,29 @@ public class EnemySpawner : MonoBehaviour
         EnemiesSpawned?.Invoke();
         return spawned;
     }
+    void OnEnable()
+    {
+        GameDirector.ContextReady += FlushPendingContextRegs;
+    }
+    void OnDisable()
+    {
+        GameDirector.ContextReady -= FlushPendingContextRegs;
+    }
+    void FlushPendingContextRegs()
+    {
+        var ctx = GameDirector.Instance ? GameDirector.Instance.Ctx : null;
+        if (ctx == null || _pendingCtxRegs.Count == 0) return;
 
+        foreach (var (sc, deck) in _pendingCtxRegs)
+        {
+            if (sc && deck != null)
+            {
+                ctx.RegisterEnemy(sc, deck); // son kayıt “current enemy” olur (normal)
+                Debug.Log($"[EnemySpawner] Pending enemy registered to Context: {sc.name}");
+            }
+        }
+        _pendingCtxRegs.Clear();
+    }
     public IEnumerator SpawnCountWithDelay(int count, float delayBetween = 0.2f)
     {
         if ((!database || database.all.Count == 0) && !enemyPrefab)
@@ -97,18 +119,17 @@ public class EnemySpawner : MonoBehaviour
             var p = spawnPoints[i];
             if (!p) continue;
 
-            if (destroyExistingOnPoint)
-                DestroyChildrenOf(p);
+            if (destroyExistingOnPoint) DestroyChildrenOf(p);
 
             var data = PickEnemyDataForAct();
             var go = SpawnFromData(p, data);
             if (go)
             {
+                SetupEnemyRuntime(go, data);   // <— gecikmeli akışta da kur
                 onEnemySpawned?.Invoke(go);
             }
 
-            if (delayBetween > 0f)
-                yield return new WaitForSeconds(delayBetween);
+            if (delayBetween > 0f) yield return new WaitForSeconds(delayBetween);
         }
 
         if (destroyExistingOnPoint)
@@ -126,19 +147,13 @@ public class EnemySpawner : MonoBehaviour
     {
         if (!database || database.all.Count == 0) return null;
 
-        // currentAct’e uygun datalar
         var pool = new List<EnemyData>();
         foreach (var d in database.all)
             if (d && d.IsForAct(currentAct))
                 pool.Add(d);
 
         if (pool.Count == 0) return null;
-
-        if (pickRandom)
-            return pool[Random.Range(0, pool.Count)];
-
-        // rastgele istemezsen ilkini al
-        return pool[0];
+        return pickRandom ? pool[Random.Range(0, pool.Count)] : pool[0];
     }
 
     GameObject SpawnFromData(Transform point, EnemyData data)
@@ -160,18 +175,49 @@ public class EnemySpawner : MonoBehaviour
 
         // data uygula (SimpleCombatant varsayımı)
         var sc   = go.GetComponent<SimpleCombatant>();
-        var prov = go.GetComponent<EnemyTargetRangeProvider>();
-        if (!prov) prov = go.AddComponent<EnemyTargetRangeProvider>();
+        var prov = go.GetComponent<EnemyTargetRangeProvider>() ?? go.AddComponent<EnemyTargetRangeProvider>();
         prov.enemyData = data; // Attack/Defense stand aralıkları buradan okunacak
         if (data && sc)
         {
-            // ApplyTo helper’ını kullanıyorsan:
             EnemyDataApplier.ApplyTo(data, sc);
         }
 
         return go;
     }
 
+    /// <summary>Spawn edilen düşman üstünde runtime kurulum: Deck, Handle, Context kaydı.</summary>
+    void SetupEnemyRuntime(GameObject go, EnemyData data)
+    {
+        if (!go) return;
+
+        var owner = go.GetComponentInChildren<DeckOwner>(true) ?? go.AddComponent<DeckOwner>();
+        int seed = (go.GetInstanceID() ^ Random.Range(0, int.MaxValue));
+        owner.CreateNewDeck(seed);
+
+        var handle = go.GetComponentInChildren<DeckHandle>(true) ?? go.AddComponent<DeckHandle>();
+        handle.Bind(owner.Deck);
+
+        var sc  = go.GetComponentInChildren<SimpleCombatant>(true);
+        var ctx = GameDirector.Instance ? GameDirector.Instance.Ctx : null;
+
+        if (ctx != null && sc != null)
+        {
+            ctx.RegisterEnemy(sc, owner.Deck);
+            Debug.Log($"[EnemySpawner] Registered enemy to CombatContext: {sc.name}");
+        }
+        else
+        {
+            if (sc != null)
+            {
+                _pendingCtxRegs.Add((sc, owner.Deck));   // <-- beklet
+                Debug.LogWarning("[EnemySpawner] Context not ready — queued pending registration.");
+            }
+            else
+            {
+                Debug.LogWarning("[EnemySpawner] SimpleCombatant missing — cannot queue registration.");
+            }
+        }
+    }
     void DestroyChildrenOf(Transform t)
     {
         if (!t) return;

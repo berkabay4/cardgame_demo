@@ -24,7 +24,7 @@ public struct IntRange
     public override string ToString() => $"[{min}..{max}]";
 }
 
-[CreateAssetMenu(menuName = "CardGame/Enemy Data", fileName = "EnemyData")]
+[CreateAssetMenu(menuName = "CardGame/Enemy/Enemy Data", fileName = "EnemyData")]
 public class EnemyData : ScriptableObject
 {
     [Header("Identity")]

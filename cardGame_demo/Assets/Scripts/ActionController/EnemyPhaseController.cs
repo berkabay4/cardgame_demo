@@ -43,7 +43,9 @@ public class EnemyPhaseController
         {
             var e = registry.All[i];
             if (!e) continue;
-            _ctx.SetEnemy(e);
+
+            _ctx.SetEnemy(e, resetEnemyAccumulators: true, carryOverExistingEnemyDeck: false);
+
             _onTurnIdx?.Invoke(e, i);
             _onPhaseStarted?.Invoke(e, PhaseKind.Defense);
 
@@ -59,7 +61,9 @@ public class EnemyPhaseController
         {
             var e = registry.All[i];
             if (!e) continue;
-            _ctx.SetEnemy(e);
+
+            _ctx.SetEnemy(e, resetEnemyAccumulators: true, carryOverExistingEnemyDeck: false);
+
             _onTurnIdx?.Invoke(e, i);
             _onPhaseStarted?.Invoke(e, PhaseKind.Attack);
 
@@ -70,15 +74,33 @@ public class EnemyPhaseController
             _onPhaseEnded?.Invoke(e, PhaseKind.Attack, atk);
         }
 
-        _state.IsBusy = false;
         onDone?.Invoke();
     }
-
     IEnumerator RunPhaseWithDelays(PhaseKind phase)
     {
+        var acc = _ctx.GetAcc(Actor.Enemy, phase);
         var enumerator = EnemyPolicy.BuildPhaseEnumerator(_ctx, phase);
+
+        int safetySteps = 0;
+        const int MAX_STEPS = 64; // sonsuz döngü koruması
+
         while (enumerator.MoveNext())
         {
+            // Faz zaten bitmişse dur
+            if (acc.IsStanding || acc.IsBusted)
+            {
+                _ctx.OnLog?.Invoke($"[AI] Enemy {phase} stopped (Standing={acc.IsStanding}, Busted={acc.IsBusted}).");
+                break;
+            }
+
+            if (++safetySteps > MAX_STEPS)
+            {
+                _ctx.OnLog?.Invoke($"[AI] Enemy {phase} abort (safety {MAX_STEPS}). Forcing STAND.");
+                _queue.Enqueue(new StandAction(Actor.Enemy, phase));
+                yield return _host.Run(_queue.RunAllCoroutine(_ctx));
+                break;
+            }
+
             var action = enumerator.Current;
             _queue.Enqueue(action);
             yield return _host.Run(_queue.RunAllCoroutine(_ctx));
@@ -89,6 +111,8 @@ public class EnemyPhaseController
                 yield return new WaitForSeconds(delay);
             }
         }
+
         _ctx.OnLog?.Invoke($"[AI] Enemy {phase} done: {_ctx.GetAcc(Actor.Enemy, phase).Total}");
     }
+
 }

@@ -30,7 +30,13 @@ public class SimpleCombatant : MonoBehaviour
         currentBlock += Mathf.Max(0, amount);
         Debug.Log($"[{name}] BLOCK +{amount} ({before}->{currentBlock})");
     }
-
+    public void ApplyFromStats(PlayerStats stats, bool refillToMax = true)
+    {
+        if (!stats) return;
+        maxHP = Mathf.Max(1, stats.MaxHealth);
+        if (refillToMax) CurrentHP = maxHP;
+        else CurrentHP = Mathf.Clamp(CurrentHP, 0, maxHP);
+    }
     public void TakeDamage(int amount)
     {
         int left = amount;

@@ -18,6 +18,7 @@ public enum TurnStep { PlayerDef, PlayerAtk, SelectTarget, EnemyDef, EnemyAtk, R
 [DisallowMultipleComponent]
 public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 {
+    public static event System.Action ContextReady;
     // --------- Singleton ----------
     public static GameDirector Instance { get; private set; }
 
@@ -77,7 +78,7 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     InputGate _input;
 
     bool _isGameStarted;
-
+    bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?     
     // === ICoroutineHost ===
     public Coroutine Run(IEnumerator routine) => StartCoroutine(routine);
 
@@ -100,55 +101,97 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         while (!_animDone && t > 0f) { t -= Time.deltaTime; yield return null; }
     }
 
-    void Awake()
-    {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-        Instance = this;
-        if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+void Awake()
+{
+    if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+    Instance = this;
+    if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+}
 
-        // düşman listesini topla (ilk açılış)
-        if (enemies == null || enemies.Count == 0)
+    void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
+    void OnDisable() => EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
+
+    IEnumerator Start()
+    {
+        // Spawner’ların Awake/Start’ı bitsin
+        yield return null; // 1 frame bekle
+
+        ResolveRefsInitial();    // <- player & enemies doğru kur
+        BuildContextAndSystems(); // <- Ctx, Queue, Controller’lar
+
+        if (autoStartOnAwake) StartGame(); else onLog?.Invoke("Press START to begin.");
+    }
+    void ResolveRefsInitial()
+    {
+        // --- Player'ı bul ---
+        if (!player) player = FindPlayerSC();
+
+        // --- Enemy listesini kur ---
+        var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        enemies = all.Where(e => e && e != player).ToList();
+
+        // Bilgi
+        onLog?.Invoke($"[Init] Player: {(player ? player.name : "NULL")} | Enemies: {enemies.Count}");
+    }
+
+    SimpleCombatant FindPlayerSC()
+    {
+        // 1) Tag ile
+        var tagged = GameObject.FindGameObjectWithTag("Player");
+        if (tagged)
         {
-            var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-            enemies = all.Where(e => e != player).ToList();
+            var sc = tagged.GetComponentInChildren<SimpleCombatant>(true);
+            if (sc) return sc;
         }
 
-        // Context & services
+        // 2) PlayerStats taşıyan SC (en güvenilir)
+        var scs = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        var byStats = scs.FirstOrDefault(s => s && s.GetComponentInChildren<PlayerStats>(true));
+        if (byStats) return byStats;
+
+        // 3) İsim içerik kontrol (yedek)
+        var byName = scs.FirstOrDefault(s => s && s.name.ToLower().Contains("player"));
+        if (byName) return byName;
+
+        return null;
+    }
+    void BuildContextAndSystems()
+    {
         var firstEnemy = enemies.Count > 0 ? enemies[0] : null;
-        Ctx = new CombatContext(threshold, new DeckService(), player, firstEnemy);
+        Ctx = new CombatContext(threshold, null, player, firstEnemy);
 
-        Ctx.OnProgress.AddListener((a,k,cur,max)=> onProgress?.Invoke(a,k,cur,max));
-        Ctx.OnCardDrawn.AddListener((a,k,c)=> onCardDrawn?.Invoke(a,k,c));
-        Ctx.OnLog.AddListener(s=> onLog?.Invoke(s));
+        Ctx.OnProgress.AddListener((a, k, cur, max) => onProgress?.Invoke(a, k, cur, max));
+        Ctx.OnCardDrawn.AddListener((a, k, c) => onCardDrawn?.Invoke(a, k, c));
+        Ctx.OnLog.AddListener(s => onLog?.Invoke(s));
 
-
-        // 3.1 Player destesi
+        // Player deck
         var pDeck = BuildDeckForUnit(player);
         Ctx.RegisterDeck(player, pDeck);
 
-        // 3.2 Sahneden gelen düşmanları EnemyRegistry kuruyor;
-        // oradaki listeden hepsi için desteyi kaydedelim:
-        foreach (var e in enemies.Where(x => x))  // initial list
+        // Enemy deck’leri
+        foreach (var e in enemies.Where(x => x))
         {
             var eDeck = BuildDeckForUnit(e);
             Ctx.RegisterDeck(e, eDeck);
         }
 
-        Queue  = new ActionQueue();
-        State  = new BattleState();
-        _enemies   = new EnemyRegistry(this, player, enemies, onLog);
-        _player    = new PlayerPhaseController(this, Ctx, Queue, State,
-                                               onPlayerDefLocked, onPlayerAtkLocked, onLog);
-        _enemy     = new EnemyPhaseController(this, Ctx, Queue, State,
-                                              onEnemyTurnIndexChanged, onEnemyPhaseStarted, onEnemyPhaseEnded,
-                                              enemyDrawDelayRange, onLog);
+        Queue = new ActionQueue();
+        State = new BattleState();
+        _enemies = new EnemyRegistry(this, player, enemies, onLog);
+        _player = new PlayerPhaseController(this, Ctx, Queue, State,
+                                            onPlayerDefLocked, onPlayerAtkLocked, onLog);
+        _enemy = new EnemyPhaseController(this, Ctx, Queue, State,
+                                            onEnemyTurnIndexChanged, onEnemyPhaseStarted, onEnemyPhaseEnded,
+                                            enemyDrawDelayRange, onLog);
         _targeting = new TargetingController(this, State, _enemies, onWaitingForTargetChanged, onTargetChanged, onLog);
-        _resolution= new ResolutionController(this, Ctx, State, _enemies,
-                                              enemyAttackSpacing, onLog, onRoundResolved,
-                                              onGameOver, onGameWin, this);
-        _input     = new InputGate(inputDebounceSeconds);
+        _resolution = new ResolutionController(this, Ctx, State, _enemies,
+                                            enemyAttackSpacing, onLog, onRoundResolved,
+                                            onGameOver, onGameWin, this);
+        _input = new InputGate(inputDebounceSeconds);
+        
+        ContextReady?.Invoke();
+        _systemsReady = true;
 
-        if (autoStartOnAwake) StartGame(); else onLog?.Invoke("Press START to begin.");
     }
     IDeckService BuildDeckForUnit(SimpleCombatant unit)
     {
@@ -163,15 +206,21 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
          Debug.Log("sa2");
         return d;
     }
-    void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
-    void OnDisable() => EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
-
     void OnEnemiesSpawnedEvent()
     {
+        // Sistemler daha hazır değilse, sadece sahnedeki enemy referanslarını topla ve çık
+        if (!_systemsReady || _enemies == null)
+        {
+            var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            enemies = all.Where(e => e && e != player).ToList();
+            onLog?.Invoke($"[Director] (early) enemies detected before init: {enemies.Count}");
+            return;
+        }
+
+        // Normal yol
         _enemies.Refresh();
         onLog?.Invoke($"[Director] Enemies refreshed. Count={_enemies.AliveEnemies.Count}");
     }
-
     // === External API (UI) ===
     public void StartGame()
     {
@@ -215,8 +264,20 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     {
         Ctx.Threshold = Mathf.Max(5, value);
         Ctx.OnLog?.Invoke($"[Rule] Threshold → {Ctx.Threshold}");
-        foreach (var kv in Ctx.Phases)
-            Ctx.OnProgress?.Invoke(kv.Key.Item1, kv.Key.Item2, kv.Value.Total, Ctx.Threshold);
+
+        // Player için
+        var pDef = Ctx.TryGetAcc(Actor.Player, PhaseKind.Defense, createIfMissing:false, isPlayerFlagIfCreate:true);
+        if (pDef != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Defense, pDef.Total, Ctx.Threshold);
+
+        var pAtk = Ctx.TryGetAcc(Actor.Player, PhaseKind.Attack,  createIfMissing:false, isPlayerFlagIfCreate:true);
+        if (pAtk != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Attack,  pAtk.Total, Ctx.Threshold);
+
+        // Enemy için (varsa)
+        var eDef = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Defense, createIfMissing:false, isPlayerFlagIfCreate:false);
+        if (eDef != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, eDef.Total, Ctx.Threshold);
+
+        var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack,  createIfMissing:false, isPlayerFlagIfCreate:false);
+        if (eAtk != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  eAtk.Total, Ctx.Threshold);
     }
     public int GetThresholdSafe()
     {
@@ -253,7 +314,15 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
                 break;
 
             case TurnStep.SelectTarget:
+                // Tek düşman varsa otomatik seç; yoksa beklemeye geç
                 _targeting.BeginTargetMode(State.PlayerAtkTotal, TryAutoTargetSingle: true);
+
+                // ⬇️ OTOMATİK HEDEF seçildiyse (Waiting=false ve CurrentTarget dolu) hemen çöz
+                if (!State.WaitingForTarget && State.CurrentTarget != null)
+                {
+                    Run(_resolution.ResolveRoundAndRestart());
+                    return; // çözüm akışı faz değişimini yönetecek
+                }
                 break;
         }
     }

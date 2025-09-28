@@ -400,7 +400,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: -6367560908665664636, guid: 3750f45c844123341b9a777a96cb1eca, type: 3}
+  m_Sprite: {fileID: 21300000, guid: af34cad9a50a94c42b0907fd58d6f99c, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -693,6 +693,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1020566379696909684}
   - component: {fileID: 4942838125795697065}
+  - component: {fileID: 5179138457796771799}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -734,6 +735,18 @@ MonoBehaviour:
   currentHP: 0
   currentBlock: 0
   currentAttack: 0
+--- !u!114 &5179138457796771799
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7279929192292158669}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a88b9301ea9c3eb43ba7872392a5cec9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &9056599535844988700
 GameObject:
   m_ObjectHideFlags: 0
