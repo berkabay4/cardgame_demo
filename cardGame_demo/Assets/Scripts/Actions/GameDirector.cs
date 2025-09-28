@@ -116,9 +116,23 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         // Context & services
         var firstEnemy = enemies.Count > 0 ? enemies[0] : null;
         Ctx = new CombatContext(threshold, new DeckService(), player, firstEnemy);
+
         Ctx.OnProgress.AddListener((a,k,cur,max)=> onProgress?.Invoke(a,k,cur,max));
         Ctx.OnCardDrawn.AddListener((a,k,c)=> onCardDrawn?.Invoke(a,k,c));
         Ctx.OnLog.AddListener(s=> onLog?.Invoke(s));
+
+
+        // 3.1 Player destesi
+        var pDeck = BuildDeckForUnit(player);
+        Ctx.RegisterDeck(player, pDeck);
+
+        // 3.2 Sahneden gelen düşmanları EnemyRegistry kuruyor;
+        // oradaki listeden hepsi için desteyi kaydedelim:
+        foreach (var e in enemies.Where(x => x))  // initial list
+        {
+            var eDeck = BuildDeckForUnit(e);
+            Ctx.RegisterDeck(e, eDeck);
+        }
 
         Queue  = new ActionQueue();
         State  = new BattleState();
@@ -136,7 +150,18 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 
         if (autoStartOnAwake) StartGame(); else onLog?.Invoke("Press START to begin.");
     }
+    IDeckService BuildDeckForUnit(SimpleCombatant unit)
+    {
+        if (!unit) return new DeckService(); // default
 
+        var def = unit.GetComponent<CombatantDeck>();
+        if (def != null) return def.BuildDeck();
+
+        // FallBack: boş default deste
+        var d = new DeckService();
+        d.RebuildAndShuffle();
+        return d;
+    }
     void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
     void OnDisable() => EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
 

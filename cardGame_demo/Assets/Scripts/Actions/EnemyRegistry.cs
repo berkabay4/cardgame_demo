@@ -37,6 +37,20 @@ public class EnemyRegistry
         if (first != null)
             _host.Ctx.SetEnemy(first);
 
+        foreach (var sc in All)
+        {
+            if (!sc) continue;
+            // Deck kayıtlı değilse ekle
+            var ctx = _host.Ctx;
+            if (!ctx.DecksByUnit.ContainsKey(sc))
+            {
+                var deck = _host.GetType()
+                    .GetMethod("BuildDeckForUnit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(_host, new object[]{ sc }) as IDeckService;
+
+                ctx.RegisterDeck(sc, deck);
+            }
+        }
         _log?.Invoke($"[Enemies] Refreshed (by spawn index). Count={All.Count}");
     }
 

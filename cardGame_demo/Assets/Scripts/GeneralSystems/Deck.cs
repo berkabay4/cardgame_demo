@@ -24,7 +24,11 @@ public class DeckService : IDeckService
         _rng = seed.HasValue ? new System.Random(seed.Value) : new System.Random();
         RebuildAndShuffle();
     }
-
+    public void ClearAndAdd(IEnumerable<Card> cards)
+    {
+        _cards.Clear();
+        if (cards != null) _cards.AddRange(cards);
+    }
     public void RebuildAndShuffle()
     {
         _cards.Clear();
