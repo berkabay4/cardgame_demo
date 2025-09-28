@@ -3,7 +3,7 @@ public class DrawCardAction : IGameAction
     readonly Actor actor;
     readonly PhaseKind phase;
 
-    public DrawCardAction(Actor a, PhaseKind k){ actor=a; phase=k; }
+    public DrawCardAction(Actor a, PhaseKind k) { actor=a; phase=k; }
 
     public void Execute(CombatContext ctx)
     {
@@ -15,11 +15,8 @@ public class DrawCardAction : IGameAction
         }
 
         var acc = ctx.GetAcc(actor, phase);
-
-        // Faz zaten Stand/Bust ise UI'ı doğru eşikle yayınla
         if (acc.IsStanding || acc.IsBusted)
         {
-            ctx.OnLog?.Invoke($"[Draw] {actor}:{phase} is already {(acc.IsStanding ? "STANDING" : "BUSTED")} → no draw.");
             ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase)); // ← FIX
             return;
         }
@@ -28,25 +25,16 @@ public class DrawCardAction : IGameAction
         {
             deck.RebuildAndShuffle();
             ctx.OnLog?.Invoke($"[Deck] Empty → Rebuilt+Shuffled for {actor}. Drawing now.");
-            if (deck.Count == 0)
-            {
-                ctx.OnLog?.Invoke($"[Deck] Still empty after rebuild for {actor} — aborting draw.");
-                return;
-            }
+            if (deck.Count == 0) return;
         }
 
-        int before = acc.Total;
-        int beforeDeck = deck.Count;
+        int before = acc.Total, beforeDeck = deck.Count;
 
-        // Hesaplamayı doğru eşikle yapıyorsun:
         acc.Hit(deck, ctx.GetThreshold(actor, phase));
 
         var lastCard = acc.Cards.Count > 0 ? acc.Cards[^1] : default;
         ctx.OnCardDrawn?.Invoke(actor, phase, lastCard);
-
-        // UI: doğru eşik ile yayınla
-        ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase)); // ← FIX
-
+        ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase));   // ← FIX
         ctx.OnLog?.Invoke($"[{actor}:{phase}] {before} → {acc.Total} (Deck {beforeDeck}->{deck.Count})");
     }
 

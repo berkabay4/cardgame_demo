@@ -72,38 +72,47 @@ public class EnemyProgressRouter : MonoBehaviour
 
     // --- helpers ---
 
-    int GetPhaseMax(PhaseKind phase)
+int GetPhaseMax(PhaseKind phase)
+{
+    // 1) Kendi EnemyData'sı varsa ondan oku
+    var provider = self ? self.GetComponent<EnemyTargetRangeProvider>() : null;
+    if (provider && provider.enemyData)
     {
-        // 1) EnemyData üzerinden (varsa) doğrudan max
-        var provider = self ? self.GetComponent<EnemyTargetRangeProvider>() : null;
-        if (provider && provider.enemyData)
-        {
-            if (phase == PhaseKind.Attack)
-                return Mathf.Max(5, provider.enemyData.maxAttackRange);
-            else
-                return Mathf.Max(5, provider.enemyData.maxdefenceRange);
-        }
-
-        // 2) Aktif düşmansa Context'teki per-phase threshold
-        var ctx = (gameDirector && gameDirector.Ctx != null) ? gameDirector.Ctx : null;
-        if (ctx != null && self && ctx.Enemy == self)
-        {
-            return ctx.GetThreshold(Actor.Enemy, phase);
-        }
-
-        // 3) Fallback: global threshold
-        return gameDirector ? gameDirector.GetThresholdSafe() : 21;
+        return phase == PhaseKind.Attack
+            ? Mathf.Max(5, provider.enemyData.maxAttackRange)
+            : Mathf.Max(5, provider.enemyData.maxdefenceRange);
     }
 
-    void InitToZeroForSelf()
-    {
-        // Kilitler sıfırlanmışken görseli 0 / faz-max ile başlat
-        int defMax = GetPhaseMax(PhaseKind.Defense);
-        int atkMax = GetPhaseMax(PhaseKind.Attack);
+    // 2) Context per-phase threshold (yalnızca bu düşman Context’te aktifse)
+    var ctx = gameDirector ? gameDirector.Ctx : null;
+    if (ctx != null && ctx.Enemy == self)
+        return ctx.GetThreshold(Actor.Enemy, phase);
 
-        if (defText && _defLocked < 0) defText.SetText(format, 0, defMax);
-        if (atkText && _atkLocked < 0) atkText.SetText(format, 0, atkMax);
+    // 3) Fallback
+    return gameDirector ? gameDirector.GetThresholdSafe() : 21;
+}
+
+void InitToZeroForSelf()
+{
+    if (_defLocked < 0 && defText) defText.SetText(format, 0, GetPhaseMax(PhaseKind.Defense));
+    if (_atkLocked < 0 && atkText) atkText.SetText(format, 0, GetPhaseMax(PhaseKind.Attack));
+}
+
+void OnEnemyPhaseEnded(SimpleCombatant enemy, PhaseKind phase, int total)
+{
+    if (enemy != self) return;
+    int max = GetPhaseMax(phase);            // ← kendi max
+    if (phase == PhaseKind.Defense)
+    {
+        _defLocked = Mathf.Max(0, total);
+        if (defText) defText.SetText(format, _defLocked, max);
     }
+    else
+    {
+        _atkLocked = Mathf.Max(0, total);
+        if (atkText) atkText.SetText(format, _atkLocked, max);
+    }
+}
 
     // --- event handlers ---
 
@@ -123,39 +132,21 @@ public class EnemyProgressRouter : MonoBehaviour
             InitToZeroForSelf();
     }
 
-    // Faz bittiğinde koordinatör "final total" gönderiyor -> kilitle
-    void OnEnemyPhaseEnded(SimpleCombatant enemy, PhaseKind phase, int total)
-    {
-        if (enemy != self) return;
-
-        int max = GetPhaseMax(phase);
-
-        if (phase == PhaseKind.Defense)
-        {
-            _defLocked = Mathf.Max(0, total);
-            if (defText) defText.SetText(format, _defLocked, max);
-            if (logWhenUpdated) Debug.Log($"[EnemyProgressRouter:{self?.name}] DEF LOCK = {_defLocked}/{max}");
-        }
-        else if (phase == PhaseKind.Attack)
-        {
-            _atkLocked = Mathf.Max(0, total);
-            if (atkText) atkText.SetText(format, _atkLocked, max);
-            if (logWhenUpdated) Debug.Log($"[EnemyProgressRouter:{self?.name}] ATK LOCK = {_atkLocked}/{max}");
-        }
-    }
-
     void OnProgress(Actor actor, PhaseKind phase, int current, int max)
     {
         if (actor != Actor.Enemy) return;
-        if (!_isActiveEnemy) return;
 
-        // Faz kilitlendiyse ara güncellemeleri yok say
+        // En sağlam filtre: Context’teki aktif enemy bu mu?
+        var ctxEnemy = gameDirector && gameDirector.Ctx != null ? gameDirector.Ctx.Enemy : null;
+        if (ctxEnemy != self) return;   // ← pasif düşmanların HUD’u hiç etkilenmesin
+
+        // Faz kilitliyse yazma
         if (phase == PhaseKind.Defense)
         {
-            if (_defLocked >= 0) return; // artık yazma
-            if (defText) defText.SetText(format, current, max); // burada event'ten gelen max doğru!
+            if (_defLocked >= 0) return;
+            if (defText) defText.SetText(format, current, max);
         }
-        else if (phase == PhaseKind.Attack)
+        else
         {
             if (_atkLocked >= 0) return;
             if (atkText) atkText.SetText(format, current, max);
@@ -164,4 +155,5 @@ public class EnemyProgressRouter : MonoBehaviour
         if (logWhenUpdated)
             Debug.Log($"[EnemyProgressRouter:{self?.name}] {phase} => {current}/{max}");
     }
+
 }

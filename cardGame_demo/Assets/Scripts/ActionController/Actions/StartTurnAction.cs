@@ -1,5 +1,4 @@
 // StartTurnAction.cs
-using System.Linq;
 using System.Collections.Generic;
 
 public class StartTurnAction : IGameAction
@@ -16,18 +15,33 @@ public class StartTurnAction : IGameAction
     public void Execute(CombatContext ctx)
     {
         // 1) Deck'lere DOKUNMA.
-        //    Kural: Deck boşaldığında rebuild/shuffle sadece DrawCardAction içinde yapılır.
+        //    Kural: Deck boşalınca rebuild/shuffle sadece DrawCardAction içinde yapılır.
 
-        // 2) O anda context'te bulunan TÜM aktörlerin faz akümülatörlerini resetle
-        //    (Phases anahtarlarından benzersiz Actor setini çıkarıyoruz)
-        var actors = new HashSet<Actor>(ctx.Phases.Keys.Select(k => k.Item1));
-        foreach (var actor in actors)
+        // 2) Context’te gerçekten mevcut olan aktörleri topla (Player/Enemy)
+        var actorsToReset = new List<Actor>(2);
+        if (ctx.TryGetUnit(Actor.Player, out _)) actorsToReset.Add(Actor.Player);
+        if (ctx.TryGetUnit(Actor.Enemy,  out _)) actorsToReset.Add(Actor.Enemy);
+
+        // 3) Her aktör için fazları resetle ve 0 / faz-bazlı max yayınla
+        foreach (var actor in actorsToReset)
         {
-            ctx.ResetPhases(actor, log: true); // OnProgress(0, per-phase threshold) + log
+            // Faz accumulator’larını sıfırla (log:false -> kendi logumuzu atacağız)
+            ctx.ResetPhases(actor, log: false);
+
+            // Faz bazlı eşikler
+            int defMax = ctx.GetThreshold(actor, PhaseKind.Defense);
+            int atkMax = ctx.GetThreshold(actor, PhaseKind.Attack);
+
+            // UI senkronizasyonu
+            ctx.OnProgress?.Invoke(actor, PhaseKind.Defense, 0, defMax);
+            ctx.OnProgress?.Invoke(actor, PhaseKind.Attack,  0, atkMax);
+
+            // Bilgi logu
+            ctx.OnLog?.Invoke($"[Turn] Phases reset for {actor} (DEF max {defMax}, ATK max {atkMax})");
         }
 
-        // 3) Turn log (global fallback threshold’u bilgi amaçlı yazıyoruz)
-        ctx.OnLog?.Invoke($"========== NEW TURN ==========\nThreshold (fallback): {ctx.Threshold}");
+        // 4) Tur başlığı
+        ctx.OnLog?.Invoke("========== NEW TURN ==========");
     }
 
     public string Describe() => "StartTurn";
