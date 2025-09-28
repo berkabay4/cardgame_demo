@@ -69,13 +69,22 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public CombatContext Ctx { get; private set; }
     public ActionQueue Queue { get; private set; }
     public BattleState State { get; private set; }
-
+    public SimpleCombatant Player => player;
     EnemyRegistry _enemies;
     PlayerPhaseController _player;
     EnemyPhaseController _enemy;
     TargetingController _targeting;
     ResolutionController _resolution;
     InputGate _input;
+
+    [System.Serializable]
+    public class UIEvents
+    {
+        public UnityEvent OnRelicsChanged;
+    }
+
+    [Header("Events (UI/Global)")]
+    public UIEvents Events = new UIEvents();
 
     bool _isGameStarted;
     bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?     
@@ -291,6 +300,11 @@ void Awake()
 
         var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack,  false, false);
         if (eAtk != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  eAtk.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Attack));
+    }
+    public void Log(string msg)
+    {
+        Debug.Log($"[GameDirector] {msg}");
+        onLog?.Invoke(msg); // UI log'un varsa buradan iletilir
     }
     public int GetThresholdSafe()
     {
