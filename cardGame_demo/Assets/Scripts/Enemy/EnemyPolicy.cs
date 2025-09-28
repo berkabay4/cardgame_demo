@@ -5,33 +5,36 @@ public static class EnemyPolicy
 {
     public static IEnumerator<IGameAction> BuildPhaseEnumerator(CombatContext ctx, PhaseKind phase)
     {
-        var enemy = ctx.GetUnit(Actor.Enemy);                 // aktif düşman (SetEnemy ile atanmış)
+        var enemy = ctx.GetUnit(Actor.Enemy);     // aktif düşman
         var acc   = ctx.GetAcc(Actor.Enemy, phase);
 
         // Faz zaten bitmişse enumerator üretme
         if (acc.IsBusted || acc.IsStanding)
             yield break;
 
+        // --- Faz eşiği (per-phase) ---
+        int phaseThreshold = ctx.GetThreshold(Actor.Enemy, phase);
+
         // --- Range & Cap sağlayıcıyı güvenli çöz ---
         IEnemyTargetRangeProvider provider = null;
         EnemyTargetRangeProvider   concrete = null;
         if (enemy)
         {
-            // Interface ile dene (tercih)
+            // (Unity sürümüne göre interface'i direkt GetComponent ile alabiliyorsan kalsın;
+            // sorun olursa MonoBehaviour ofType ile alın.)
             provider = enemy.GetComponent<IEnemyTargetRangeProvider>();
-            // Cap için concrete gerekiyorsa ayrı çöz
             concrete = enemy.GetComponent<EnemyTargetRangeProvider>();
         }
 
-        // Hedef aralığı
-        (int min, int max) target = provider != null
-            ? provider.GetRange(phase, ctx.Threshold)
-            : GetFallbackRange(phase, ctx.Threshold);
+        // Hedef aralığı (faz eşiğine göre)
+        (int min, int max) target = (provider != null)
+            ? provider.GetRange(phase, phaseThreshold)
+            : GetFallbackRange(phase, phaseThreshold);
 
-        // Hard cap
-        int cap = ctx.Threshold;
+        // Hard cap (EnemyData'daki maxAttackRange/maxdefenceRange ≤ phaseThreshold)
+        int cap = phaseThreshold;
         if (concrete != null)
-            cap = Mathf.Max(0, concrete.GetMaxRangeCap(ctx.Threshold));
+            cap = Mathf.Max(0, concrete.GetMaxRangeCap(phase, phaseThreshold));
 
         // Hedef aralığını cap’e kıstır
         target.min = Mathf.Clamp(target.min, 0, cap);
@@ -72,7 +75,7 @@ public static class EnemyPolicy
             }
         }
 
-        // Bust/Stand ile döngü dışına düştüyse zaten faz bitmiş demektir
+        // Bust/Stand ile döngü dışına düştüyse faz bitmiştir
         yield break;
     }
 

@@ -10,18 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 805ea3f0fc45cd444a52fac847de872c, type: 3}
-  m_Name: Enemy01_PinkMan
+  m_Name: Enemy02_PinkMan
   m_EditorClassIdentifier: 
   enemyName: Enemy_PinkMan
   enemyId: enemy_001
   enemySprite: {fileID: -6367560908665664636, guid: d348dff3819df794186a80cb95777629, type: 3}
   maxHealth: 100
-  attackRange:
-    min: 6
-    max: 12
-  defenseRange:
-    min: 12
-    max: 20
-  maxRange: 21
+  targetattackvalueRange:
+    min: 18
+    max: 25
+  targetdefensevalueRange:
+    min: 5
+    max: 8
+  maxAttackRange: 30
+  maxdefenceRange: 10
   acts: 01000000
   enemyPrefab: {fileID: 7984944881641689443, guid: a4023693eb6b2fb49af44da1d03b29e2, type: 3}

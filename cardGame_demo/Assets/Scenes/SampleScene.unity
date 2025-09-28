@@ -536,7 +536,7 @@ MonoBehaviour:
   destroyExistingOnPoint: 1
   pickRandom: 1
   registerToContext: 1
-  testSpawnCount: 1
+  testSpawnCount: 3
   spawnOnToggle: 1
   autoResetToggle: 0
   useDelayForTest: 0

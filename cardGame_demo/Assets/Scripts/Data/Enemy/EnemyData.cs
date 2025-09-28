@@ -42,15 +42,15 @@ public class EnemyData : ScriptableObject
     [Min(1)] public int maxHealth = 20;
 
     [Tooltip("AI hedefi/olasılıkları gibi kullanabileceğin saldırı aralığı")]
-    public IntRange attackRange = new IntRange(8, 14);
+    public IntRange targetattackvalueRange = new IntRange(8, 14);
 
     [Tooltip("AI hedefi/olasılıkları gibi kullanabileceğin savunma aralığı")]
-    public IntRange defenseRange = new IntRange(5, 12);
+    public IntRange targetdefensevalueRange = new IntRange(5, 12);
 
     [Header("Rules")]
     [Tooltip("Bu düşman için BlackJack üst sınırı (ör. 21). Savaş kurallarını düşman bazlı yapmak istersen.")]
-    public int maxRange = 21;
-
+    public int maxAttackRange = 21;
+    public int maxdefenceRange = 21;
     [Header("Availability")]
     public Act[] acts = new Act[] { Act.Act1 };  // ← hangi Act’lerde görünebilir
 
@@ -60,19 +60,18 @@ public class EnemyData : ScriptableObject
     public GameObject enemyPrefab;
 
     // --- Helpers ---
-    public int RollAttack()  => attackRange.RollInclusive();
-    public int RollDefense() => defenseRange.RollInclusive();
+    public int RollAttack()  => targetattackvalueRange.RollInclusive();
+    public int RollDefense() => targetdefensevalueRange.RollInclusive();
 
 #if UNITY_EDITOR
     private void OnValidate()
     {
         // negative değerleri toparla
         if (maxHealth < 1) maxHealth = 1;
-        if (maxRange  < 5) maxRange  = 5;
 
         // min/max tersse çevir
-        if (attackRange.max  < attackRange.min) { var t = attackRange.min; attackRange.min = attackRange.max; attackRange.max = t; }
-        if (defenseRange.max < defenseRange.min) { var t = defenseRange.min; defenseRange.min = defenseRange.max; defenseRange.max = t; }
+        if (targetattackvalueRange.max  < targetattackvalueRange.min) { var t = targetattackvalueRange.min; targetattackvalueRange.min = targetattackvalueRange.max; targetattackvalueRange.max = t; }
+        if (targetdefensevalueRange.max < targetdefensevalueRange.min) { var t = targetdefensevalueRange.min; targetdefensevalueRange.min = targetdefensevalueRange.max; targetdefensevalueRange.max = t; }
     }
 #endif
 }

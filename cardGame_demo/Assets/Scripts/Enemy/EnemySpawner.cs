@@ -26,7 +26,7 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private bool autoResetToggle = true;
     [SerializeField] private bool useDelayForTest = false;
     [SerializeField, Min(0f)] private float testDelayBetween = 0.2f;
-    private readonly List<(SimpleCombatant sc, IDeckService deck)> _pendingCtxRegs = new();
+
     private bool _prevSpawnOnToggle;
 
     // ---- Events ----
@@ -34,7 +34,15 @@ public class EnemySpawner : MonoBehaviour
     public UnityEvent onEnemiesSpawned;               // tüm spawnlar bitti
     public UnityEvent<GameObject> onEnemySpawned;     // her yeni düşman için
     public static event System.Action EnemiesSpawned; // global (isteğe bağlı)
-
+    private struct PendingEnemy
+    {
+        public SimpleCombatant sc;
+        public IDeckService deck;
+        public int atkMax;
+        public int defMax;
+    }
+    // private readonly List<(SimpleCombatant sc, IDeckService deck)> _pendingCtxRegs = new();
+    private readonly List<PendingEnemy> _pendingCtxRegs = new();
     // === Public API ===
     public List<GameObject> SpawnCount(int count)
     {
@@ -61,7 +69,7 @@ public class EnemySpawner : MonoBehaviour
             if (destroyExistingOnPoint) DestroyChildrenOf(p);
 
             var data = PickEnemyDataForAct();
-            var go   = SpawnFromData(p, data);
+            var go = SpawnFromData(p, data);
             if (!go) continue;
 
             SetupEnemyRuntime(go, data);   // <— DECK + CONTEXT burada
@@ -93,16 +101,20 @@ public class EnemySpawner : MonoBehaviour
         var ctx = GameDirector.Instance ? GameDirector.Instance.Ctx : null;
         if (ctx == null || _pendingCtxRegs.Count == 0) return;
 
-        foreach (var (sc, deck) in _pendingCtxRegs)
+        foreach (var p in _pendingCtxRegs)
         {
-            if (sc && deck != null)
+            if (p.sc && p.deck != null)
             {
-                ctx.RegisterEnemy(sc, deck); // son kayıt “current enemy” olur (normal)
-                Debug.Log($"[EnemySpawner] Pending enemy registered to Context: {sc.name}");
+                ctx.RegisterEnemy(p.sc, p.deck);
+                ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  p.atkMax);
+                ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, p.defMax);
+
+                Debug.Log($"[EnemySpawner] Pending enemy registered + thresholds set → {p.sc.name} (ATK:{p.atkMax}, DEF:{p.defMax})");
             }
         }
         _pendingCtxRegs.Clear();
     }
+
     public IEnumerator SpawnCountWithDelay(int count, float delayBetween = 0.2f)
     {
         if ((!database || database.all.Count == 0) && !enemyPrefab)
@@ -200,17 +212,25 @@ public class EnemySpawner : MonoBehaviour
         var sc  = go.GetComponentInChildren<SimpleCombatant>(true);
         var ctx = GameDirector.Instance ? GameDirector.Instance.Ctx : null;
 
+        // data’dan faz eşikleri
+        int atkMax = (data != null) ? Mathf.Max(5, data.maxAttackRange)  : ((ctx != null) ? ctx.Threshold : 21);  // ← FIX
+        int defMax = (data != null) ? Mathf.Max(5, data.maxdefenceRange) : ((ctx != null) ? ctx.Threshold : 21);  // ← FIX
+
         if (ctx != null && sc != null)
         {
             ctx.RegisterEnemy(sc, owner.Deck);
-            Debug.Log($"[EnemySpawner] Registered enemy to CombatContext: {sc.name}");
+
+            ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  atkMax);
+            ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, defMax);
+
+            Debug.Log($"[EnemySpawner] Registered enemy to CombatContext + thresholds set: {sc.name} (ATK:{atkMax}, DEF:{defMax})");
         }
         else
         {
             if (sc != null)
             {
-                _pendingCtxRegs.Add((sc, owner.Deck));   // <-- beklet
-                Debug.LogWarning("[EnemySpawner] Context not ready — queued pending registration.");
+                _pendingCtxRegs.Add(new PendingEnemy { sc = sc, deck = owner.Deck, atkMax = atkMax, defMax = defMax });
+                Debug.LogWarning("[EnemySpawner] Context not ready — queued pending registration + thresholds.");
             }
             else
             {
@@ -218,6 +238,7 @@ public class EnemySpawner : MonoBehaviour
             }
         }
     }
+
     void DestroyChildrenOf(Transform t)
     {
         if (!t) return;
