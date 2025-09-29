@@ -109,7 +109,7 @@ public class EnemySpawner : MonoBehaviour
                 ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  p.atkMax);
                 ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, p.defMax);
 
-                Debug.Log($"[EnemySpawner] Pending enemy registered + thresholds set → {p.sc.name} (ATK:{p.atkMax}, DEF:{p.defMax})");
+                // Debug.Log($"[EnemySpawner] Pending enemy registered + thresholds set → {p.sc.name} (ATK:{p.atkMax}, DEF:{p.defMax})");
             }
         }
         _pendingCtxRegs.Clear();

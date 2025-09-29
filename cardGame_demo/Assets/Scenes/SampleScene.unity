@@ -336,7 +336,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1385394758}
   m_Father: {fileID: 660692081}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &186063708
@@ -648,6 +649,7 @@ MonoBehaviour:
   autoAddSpriteRenderer: 1
   autoAddPlayerStats: 1
   autoAddSimpleCombatant: 0
+  autoAddHealthManager: 1
   playerInstance: {fileID: 0}
 --- !u!1 &504497087
 GameObject:
@@ -883,7 +885,6 @@ Transform:
   m_Children:
   - {fileID: 1932883325}
   - {fileID: 393004888}
-  - {fileID: 1166215890}
   - {fileID: 186063707}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1400,12 +1401,12 @@ Transform:
   m_GameObject: {fileID: 1166215889}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -960, y: -835.98, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 728126149}
-  m_Father: {fileID: 660692081}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &1225915543 stripped
 Transform:
@@ -1450,6 +1451,74 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1385394757
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1385394758}
+  - component: {fileID: 1385394759}
+  m_Layer: 0
+  m_Name: RelicStatsSync
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1385394758
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385394757}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 186063707}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1385394759
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385394757}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef78666ecd877304bbd3a5e764e47aa1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  applyOnStart: 1
+  delayFrames: 1
+  reapplyOnRelicsChanged: 1
+  bindings:
+  - name: Player ATK TH
+    stat: 0
+    actor: 0
+    phase: 1
+    source: 0
+    baseOverride: 0
+    applyTarget: 0
+    onApplied:
+      m_PersistentCalls:
+        m_Calls: []
+  - name: Player MAX HP
+    stat: 2
+    actor: 0
+    phase: 1
+    source: 0
+    baseOverride: 0
+    applyTarget: 0
+    onApplied:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1445870577
 GameObject:
   m_ObjectHideFlags: 0
@@ -1866,14 +1935,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6884c2ee49859764aa60093942cc0542, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  grantOnAwake: 0
-  grantOnStart: 1
-  delayFrames: 0
+  grantOnToggle: 0
+  autoResetToggleAfterGrant: 1
   clearExistingBefore: 0
   toGrant:
   - relic: {fileID: 11400000, guid: ad13ef8d91a03264185a5c0933013b16, type: 2}
     stacks: 1
     enabled: 1
+  raiseRelicsChangedEvent: 1
+  forceApplyRelicStats: 1
   disableAfterGrant: 1
 --- !u!1 &1804067739
 GameObject:
@@ -2547,6 +2617,7 @@ SceneRoots:
   m_Roots:
   - {fileID: 2122704061}
   - {fileID: 2017336700}
+  - {fileID: 1166215890}
   - {fileID: 660692081}
   - {fileID: 1445870580}
   - {fileID: 5151481586542517308}

@@ -1,4 +1,5 @@
 using System;
+
 public class DrawCardAction : IGameAction
 {
     readonly Actor actor;
@@ -15,74 +16,54 @@ public class DrawCardAction : IGameAction
             return;
         }
 
-        var acc = ctx.GetAcc(actor, phase);
+        var acc    = ctx.GetAcc(actor, phase);
+        var relics = RelicManager.Instance; // null-safe (sadece kancalar için)
+
+        // Threshold artık başlangıçta/relik senkronunda Ctx'e yazılıyor
+        int threshold = ctx.GetThreshold(actor, phase);
+
+        // Stand/Bust ise sadece UI güncelle
         if (acc.IsStanding || acc.IsBusted)
         {
-            // Statü sabitse yine de UI’yi güncelle
-            ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase));
-            return;
-        }
-
-        // ==== Relic: bu aksiyondaki çekim adedini relic'lere sor ====
-        int drawCount = 1;
-        var relics = RelicManager.Instance; // null-safe
-        if (relics != null)
-            drawCount = Math.Max(0, relics.ApplyDrawCountModifiers(drawCount));
-
-        if (drawCount <= 0)
-        {
-            ctx.OnLog?.Invoke($"[Draw] Prevented by modifiers for {actor}.");
-            ctx.OnProgress?.Invoke(actor, phase, acc.Total, ctx.GetThreshold(actor, phase));
+            ctx.OnProgress?.Invoke(actor, phase, acc.Total, threshold);
+            ctx.OnLog?.Invoke($"[Draw] Standing/Busted. No draw. TH={threshold}");
             return;
         }
 
         int totalBefore = acc.Total;
-        int deckBefore = deck.Count;
-        int actuallyDrawn = 0;
+        int deckBefore  = deck.Count;
 
-        for (int i = 0; i < drawCount; i++)
+        // Tek kart çek
+        if (deck.Count == 0)
         {
-            // Oyuncu bu arada stand/bust olduysa dur.
-            if (acc.IsStanding || acc.IsBusted) break;
+            deck.RebuildAndShuffle();
+            ctx.OnLog?.Invoke($"[Deck] Empty → Rebuilt+Shuffled for {actor}.");
+            relics?.OnShuffle();
 
             if (deck.Count == 0)
             {
-                deck.RebuildAndShuffle();
-                ctx.OnLog?.Invoke($"[Deck] Empty → Rebuilt+Shuffled for {actor}.");
-                // Relic: shuffle kancası
-                relics?.OnShuffle();
-
-                if (deck.Count == 0) // hâlâ boşsa çık
-                {
-                    ctx.OnLog?.Invoke($"[Deck] Still empty after rebuild for {actor}. Stop drawing.");
-                    break;
-                }
+                ctx.OnLog?.Invoke($"[Deck] Still empty after rebuild for {actor}. Stop drawing.");
+                return;
             }
-
-            int threshold = ctx.GetThreshold(actor, phase);
-            int before = acc.Total;
-
-            acc.Hit(deck, threshold);
-            actuallyDrawn++;
-
-            // Son çekilen kart (varsa)
-            var lastCard = acc.Cards.Count > 0 ? acc.Cards[^1] : default;
-
-            // Relic: on card drawn
-            relics?.OnCardDrawn(lastCard);
-
-            // UI event
-            ctx.OnCardDrawn?.Invoke(actor, phase, lastCard);
-            ctx.OnProgress?.Invoke(actor, phase, acc.Total, threshold);
-
-            ctx.OnLog?.Invoke($"[{actor}:{phase}] {before} → {acc.Total} (Deck {deckBefore}->{deck.Count})");
-
-            // Bust/Stand durumu bu çekimde değiştiyse bir sonraki iterasyonda for kırılacak.
         }
 
-        // Özet log
+        int before = acc.Total;
+
+        acc.Hit(deck, threshold);
+
+        var lastCard = acc.Cards.Count > 0 ? acc.Cards[^1] : default;
+        relics?.OnCardDrawn(lastCard);
+
+        ctx.OnCardDrawn?.Invoke(actor, phase, lastCard);
+        ctx.OnProgress?.Invoke(actor, phase, acc.Total, threshold);
+
         ctx.OnLog?.Invoke(
-            $"[Draw] {actor}:{phase} drew {actuallyDrawn}/{drawCount} (Total {totalBefore}->{acc.Total}, Deck {deckBefore}->{deck.Count})"
+            $"[{actor}:{phase}] {before} → {acc.Total} (Deck {deckBefore}->{deck.Count}) TH={threshold}"
+        );
+
+        // Özet log (tek kart olduğu için sade)
+        ctx.OnLog?.Invoke(
+            $"[Draw] {actor}:{phase} drew 1 card (Total {totalBefore}->{acc.Total}, Deck {deckBefore}->{deck.Count}) TH={threshold}"
         );
     }
 

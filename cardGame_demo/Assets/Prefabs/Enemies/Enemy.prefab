@@ -610,6 +610,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1006871175167477685}
   - component: {fileID: 540747059995386030}
+  - component: {fileID: 2937636969594540180}
   - component: {fileID: 2978311477843390898}
   - component: {fileID: 3478923218211279739}
   - component: {fileID: 8830286263138758337}
@@ -685,6 +686,39 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 2.0070796, y: 1.9296114}
   m_EdgeRadius: 0
+--- !u!114 &2937636969594540180
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7984944881641689443}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 971187cd2d6295645a9b6b1015115232, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHP: 80
+  currentHP: 0
+  currentBlock: 0
+  OnMaxHPChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  OnHPChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  OnBlockChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  OnDamaged:
+    m_PersistentCalls:
+      m_Calls: []
+  OnHealed:
+    m_PersistentCalls:
+      m_Calls: []
+  OnDeath:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &2978311477843390898
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -697,10 +731,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cc7258d11375a8b4984adad14027f2b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHP: 80
-  currentHP: 0
-  currentBlock: 0
+  health: {fileID: 0}
   currentAttack: 0
+  maxHP: 80
 --- !u!114 &3478923218211279739
 MonoBehaviour:
   m_ObjectHideFlags: 0

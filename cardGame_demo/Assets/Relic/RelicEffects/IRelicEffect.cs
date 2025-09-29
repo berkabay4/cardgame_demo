@@ -7,8 +7,8 @@ public interface IRelicEffect
     // Yaşam döngüsü
     void OnAcquire(RelicRuntime runtime, RelicContext ctx);
     void OnLose(RelicRuntime runtime, RelicContext ctx);
-    public float ModifyAttackValue (RelicRuntime r, RelicContext c, float baseValue, ref bool applied)  => baseValue;
-    public float ModifyDefenseValue(RelicRuntime r, RelicContext c, float baseValue, ref bool applied)  => baseValue;
+    public float ModifyAttackValue(RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
+    public float ModifyDefenseValue(RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
 
     // Kancalar (gerekli olanları boş bırakılabilir)
     void OnTurnStart(RelicRuntime runtime, RelicContext ctx);
@@ -19,9 +19,10 @@ public interface IRelicEffect
     void OnCardPlayed(RelicRuntime runtime, RelicContext ctx, Card playedCard);
 
     // Değer değiştiriciler (pipeline)
-    float ModifyDamageDealt(RelicRuntime runtime, RelicContext ctx, float baseValue, ref bool applied);
-    int   ModifyDrawCount(RelicRuntime runtime, RelicContext ctx, int baseValue, ref bool applied);
-    int   ModifyEnergyGain(RelicRuntime runtime, RelicContext ctx, int baseValue, ref bool applied);
+    // float ModifyDamageDealt(RelicRuntime runtime, RelicContext ctx, float baseValue, ref bool applied);
+    int ModifyAttackThreshold (RelicRuntime r, RelicContext c, int baseValue, ref bool applied) => baseValue;
+    int ModifyDefenseThreshold(RelicRuntime r, RelicContext c, int baseValue, ref bool applied) => baseValue;
+    float ModifyStat(RelicRuntime r, RelicContext c, StatId stat, float baseValue, ref bool applied);
 }
 
 // Runtime tarafında stack, geçici sayaç vb.
@@ -62,12 +63,14 @@ public class RelicContext
     public int discardCount;    // sende yok → 0 bırakıyoruz
     public int handCount;       // sende yok → 0 bırakıyoruz
     public int energyThisTurn;  // sende yok → 0 bırakıyoruz
+    public Actor     thresholdForActor;   // Kimin eşiğini değiştiriyoruz?
+    public PhaseKind thresholdForPhase;   // Attack/Defense hangisi?
 
     public RelicContext(GameDirector dir, SimpleCombatant p, SimpleCombatant e)
     {
         director = dir;
         player = p;
-        enemy  = e;
+        enemy = e;
     }
 }
 

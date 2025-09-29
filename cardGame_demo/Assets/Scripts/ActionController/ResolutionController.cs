@@ -45,13 +45,20 @@ public class ResolutionController
             {
                 if (dmg > 0)
                 {
-                    _state.CurrentTarget.CurrentHP -= dmg;
+                    // HealthManager üzerinden uygula
+                    _state.CurrentTarget.TakeDamage(dmg);
                     _log?.Invoke($"You dealt {dmg} to {_state.CurrentTarget.name}.");
                 }
-                else _log?.Invoke($"Your attack couldn’t pierce {_state.CurrentTarget.name}'s defense.");
+                else
+                {
+                    _log?.Invoke($"Your attack couldn’t pierce {_state.CurrentTarget.name}'s defense.");
+                }
             }));
         }
-        else _log?.Invoke("No valid target for your attack.");
+        else
+        {
+            _log?.Invoke("No valid target for your attack.");
+        }
 
         // 2) Enemies -> Player (sırayla)
         int remainingDef = Mathf.Max(0, _state.PlayerDefTotal);
@@ -75,13 +82,20 @@ public class ResolutionController
                 {
                     if (effective > 0)
                     {
-                        _ctx.Player.CurrentHP -= effective;
+                        // HealthManager üzerinden uygula
+                        _ctx.Player.TakeDamage(effective);
                         _log?.Invoke($"{e.name} hits you for {effective}.");
                     }
-                    else _log?.Invoke($"{e.name}'s attack was blocked.");
+                    else
+                    {
+                        _log?.Invoke($"{e.name}'s attack was blocked.");
+                    }
                 }));
             }
-            else _log?.Invoke($"{e.name} attacks but has no effective attack.");
+            else
+            {
+                _log?.Invoke($"{e.name} attacks but has no effective attack.");
+            }
 
             if (i < lastActiveIdx && _enemyAttackSpacing > 0f)
                 yield return new WaitForSeconds(_enemyAttackSpacing);

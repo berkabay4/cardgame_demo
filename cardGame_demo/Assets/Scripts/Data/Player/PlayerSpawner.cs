@@ -12,15 +12,17 @@ public class PlayerSpawner : MonoBehaviour
     [SerializeField] private bool dontDestroyOnLoad = false;
 
     [Header("Auto Add / Fallbacks")]
-    [SerializeField] private bool autoAddSpriteRenderer   = true;
-    [SerializeField] private bool autoAddPlayerStats      = true;
-    [SerializeField] private bool autoAddSimpleCombatant  = false; // İstersen player’a SC ekle
+    [SerializeField] private bool autoAddSpriteRenderer  = true;
+    [SerializeField] private bool autoAddPlayerStats     = true;
+    [SerializeField] private bool autoAddSimpleCombatant = true; // yeni sistemde SC gerekli
+    [SerializeField] private bool autoAddHealthManager   = true; // yeni: HM zorunlu
 
     [Header("Runtime (read-only)")]
     [SerializeField] private GameObject playerInstance;
-    public GameObject PlayerInstance => playerInstance;
-    public PlayerStats PlayerStats   { get; private set; }
-    public SimpleCombatant Combatant { get; private set; }
+    public GameObject      PlayerInstance => playerInstance;
+    public PlayerStats     PlayerStats    { get; private set; }
+    public SimpleCombatant Combatant      { get; private set; }
+    public HealthManager   Health         { get; private set; }
 
     private void Awake()
     {
@@ -40,14 +42,15 @@ public class PlayerSpawner : MonoBehaviour
             Destroy(playerInstance);
             playerInstance = null;
             PlayerStats = null;
-            Combatant = null;
+            Combatant   = null;
+            Health      = null;
         }
 
-        // Pozisyon/rotasyon hesabı
-        var pos = spawnPoint ? spawnPoint.position : transform.position;
+        // Pozisyon/rotasyon
+        var pos = spawnPoint ? spawnPoint.position  : transform.position;
         var rot = spawnPoint ? spawnPoint.rotation : transform.rotation;
 
-        // 1) Prefab varsa instantiat et, yoksa boş GO oluştur
+        // 1) Prefab ya da boş GO
         if (selectedPlayer.playerPrefab)
         {
             playerInstance = Instantiate(selectedPlayer.playerPrefab, pos, rot);
@@ -59,64 +62,57 @@ public class PlayerSpawner : MonoBehaviour
             playerInstance.transform.SetPositionAndRotation(pos, rot);
         }
 
-        if (parentUnderSpawner) playerInstance.transform.SetParent(transform, worldPositionStays: true);
+        if (parentUnderSpawner)
+            playerInstance.transform.SetParent(transform, worldPositionStays: true);
 
         // 2) Sprite
-        var sr = playerInstance.GetComponentInChildren<SpriteRenderer>(true) 
+        var sr = playerInstance.GetComponentInChildren<SpriteRenderer>(true)
                  ?? playerInstance.GetComponent<SpriteRenderer>();
         if (!sr && autoAddSpriteRenderer) sr = playerInstance.AddComponent<SpriteRenderer>();
         if (sr && selectedPlayer.playerSprite) sr.sprite = selectedPlayer.playerSprite;
 
-        // 3) PlayerStats
-        var stats = playerInstance.GetComponentInChildren<PlayerStats>(true) 
+        // 3) Bileşenler: SimpleCombatant + HealthManager + (opsiyonel) PlayerStats
+        var sc = playerInstance.GetComponentInChildren<SimpleCombatant>(true)
+                 ?? playerInstance.GetComponent<SimpleCombatant>();
+        if (!sc && autoAddSimpleCombatant) sc = playerInstance.AddComponent<SimpleCombatant>();
+
+        var hm = playerInstance.GetComponentInChildren<HealthManager>(true)
+                 ?? playerInstance.GetComponent<HealthManager>();
+        if (!hm && autoAddHealthManager) hm = playerInstance.AddComponent<HealthManager>();
+
+        var stats = playerInstance.GetComponentInChildren<PlayerStats>(true)
                     ?? playerInstance.GetComponent<PlayerStats>();
         if (!stats && autoAddPlayerStats) stats = playerInstance.AddComponent<PlayerStats>();
 
-        if (stats)
+        Combatant = sc;
+        Health    = hm;
+        PlayerStats = stats;
+
+        // 4) PlayerData → uygula (HealthManager merkezli)
+        // (daha önce verdiğimiz PlayerDataApplier, HM + Stats üzerinden init ediyor)
+        if (Combatant)
         {
-            stats.InitFrom(selectedPlayer);                     // MaxHealth, CurrentHealth, MaxRange
-            PlayerStats = stats;
+            selectedPlayer.ApplyTo(Combatant);
+            // isim
+            if (!string.IsNullOrWhiteSpace(selectedPlayer.playerName))
+                Combatant.name = selectedPlayer.playerName;
         }
         else
         {
-            Debug.LogWarning("[PlayerSpawner] PlayerStats bulunamadı (ve eklenmedi). Fallback olarak SimpleCombatant alanlarına yazılacak.");
+            Debug.LogWarning("[PlayerSpawner] SimpleCombatant bulunamadı/eklenmedi. Sağlık/stat senkronu eksik kalabilir.");
         }
 
-        // 4) SimpleCombatant
-        var sc = playerInstance.GetComponentInChildren<SimpleCombatant>(true) 
-                 ?? playerInstance.GetComponent<SimpleCombatant>();
-        if (!sc && autoAddSimpleCombatant) sc = playerInstance.AddComponent<SimpleCombatant>();
-        Combatant = sc;
-
-        // 5) PlayerData → SimpleCombatant’a uygula
-        // Tercih 1: PlayerStats varsa ondan senkronla
-        if (Combatant && PlayerStats)
-        {
-            Combatant.ApplyFromStats(PlayerStats, refillToMax: true);
-            Combatant.name = string.IsNullOrWhiteSpace(selectedPlayer.playerName) 
-                             ? Combatant.name : selectedPlayer.playerName;
-        }
-        // Tercih 2: Stats yoksa direkt Combatant alanlarına yaz (fallback)
-        else if (Combatant && !PlayerStats)
-        {
-            int hp = Mathf.Max(1, selectedPlayer.maxHealth);
-            Combatant.maxHP = hp;               // SC alanı (senin sınıfındaki public field)
-            Combatant.CurrentHP = hp;
-            Combatant.name = string.IsNullOrWhiteSpace(selectedPlayer.playerName) 
-                             ? Combatant.name : selectedPlayer.playerName;
-        }
-
+        // 5) DeckOwner / DeckHandle
         var owner = playerInstance.GetComponentInChildren<DeckOwner>(true)
-                ?? playerInstance.AddComponent<DeckOwner>();
+                 ?? playerInstance.AddComponent<DeckOwner>();
         int seed = (playerInstance.GetInstanceID() ^ Time.frameCount);
         owner.CreateNewDeck(seed);
 
-        // (opsiyonel) DeckHandle
         var handle = playerInstance.GetComponentInChildren<DeckHandle>(true)
-                ?? playerInstance.AddComponent<DeckHandle>();
+                  ?? playerInstance.AddComponent<DeckHandle>();
         handle.Bind(owner.Deck);
 
-        // Context'e kaydet
+        // 6) CombatContext’e kayıt
         var ctxProv = FindAnyObjectByType<CombatContextProvider>();
         if (ctxProv && Combatant)
         {
@@ -128,18 +124,17 @@ public class PlayerSpawner : MonoBehaviour
             Debug.LogWarning("[PlayerSpawner] CombatContextProvider yok veya Combatant null.");
         }
 
-        Debug.Log($"[PlayerSpawner] Player deck created. Count:{owner.Deck.Count}");
         // 7) Log
-        if (PlayerStats)
-            Debug.Log($"[PlayerSpawner] Applied PlayerData → name:{selectedPlayer.playerName}, HP:{PlayerStats.CurrentHealth}/{PlayerStats.MaxHealth}, MaxDefenseRange:{PlayerStats.MaxDefenseRange}, MaxAttackRange:{PlayerStats.MaxAttackRange}");
-        else if (Combatant)
-            Debug.Log($"[PlayerSpawner] Applied PlayerData (fallback) → name:{selectedPlayer.playerName}, HP:{Combatant.CurrentHP}/{Combatant.MaxHP}");
+        if (Health)
+            Debug.Log($"[PlayerSpawner] Applied PlayerData → name:{selectedPlayer.playerName}, HP:{Health.CurrentHP}/{Health.MaxHP}");
         else
-            Debug.LogWarning("[PlayerSpawner] SimpleCombatant da yok → yalnızca görsel/isim uygulanmış olabilir.");
+            Debug.LogWarning("[PlayerSpawner] HealthManager yok → HP init edilmemiş olabilir.");
+
+        // Debug.Log($"[PlayerSpawner] Player deck created. Count:{owner.Deck.Count}");
 
         if (dontDestroyOnLoad) DontDestroyOnLoad(playerInstance);
     }
-    
+
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {

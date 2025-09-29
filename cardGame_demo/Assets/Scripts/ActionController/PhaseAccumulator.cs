@@ -38,20 +38,20 @@ public class PhaseAccumulator
         {
             Total = threshold;
             IsStanding = true;         // otomatik Stand
-            Debug.Log($"[{_name}] HIT → JOKER! {Total}/{threshold} (auto-Stand)");
+            // Debug.Log($"[{_name}] HIT → JOKER! {Total}/{threshold} (auto-Stand)");
             return;
         }
 
         int raw = BlackjackMath.RawTotal(Cards);
         Total = raw;
 
-        Debug.Log($"[{_name}] HIT → {c} | {Total}/{threshold}");
+        // Debug.Log($"[{_name}] HIT → {c} | {Total}/{threshold}");
 
         if (Total > threshold)
         {
             IsBusted = true;
             Total = 0;
-            Debug.Log($"[{_name}] BUST! Value becomes 0.");
+            // Debug.Log($"[{_name}] BUST! Value becomes 0.");
         }
     }
 

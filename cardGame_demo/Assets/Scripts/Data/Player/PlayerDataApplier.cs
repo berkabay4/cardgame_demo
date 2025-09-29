@@ -1,10 +1,11 @@
 using UnityEngine;
+using System; // string.IsNullOrWhiteSpace
 
 public static class PlayerDataApplier
 {
     /// <summary>
     /// PlayerData değerlerini hedef SimpleCombatant'a uygular.
-    /// Öncelik: PlayerStats varsa ondan init → yoksa Combatant alanlarına yazar.
+    /// Öncelik: PlayerStats varsa ondan init → ardından HealthManager'a uygula.
     /// </summary>
     public static void ApplyTo(this PlayerData data, SimpleCombatant target)
     {
@@ -16,30 +17,35 @@ public static class PlayerDataApplier
 
         // Sprite
         var sr = target.GetComponentInChildren<SpriteRenderer>(true) ?? target.GetComponent<SpriteRenderer>();
-        if (sr && data.playerSprite)
-            sr.sprite = data.playerSprite;
+        if (sr && data.playerSprite) sr.sprite = data.playerSprite;
 
-        // Öncelik: PlayerStats varsa oradan init et
+        // HealthManager hazırla (yoksa ekle)
+        var hm = target.GetComponentInChildren<HealthManager>(true) ?? target.GetComponent<HealthManager>();
+        if (!hm) hm = target.gameObject.AddComponent<HealthManager>();
+
+        // PlayerStats varsa ondan init et (senin Stats.InitFrom(data) metodunu kullanarak)
         var stats = target.GetComponentInChildren<PlayerStats>(true) ?? target.GetComponent<PlayerStats>();
         if (stats)
         {
-            stats.InitFrom(data);                 // MaxHealth, CurrentHealth=Max, MaxRange(21) vb.
-            // SimpleCombatant ile senkron (HP’yi doldur)
-            target.CurrentHP = stats.MaxHealth;
+            // PlayerStats kendi iç alanlarını doldursun (MaxHealth vb.)
+            stats.InitFrom(data);
 
-            // SimpleCombatant'ta public field 'maxHP' varsa hizala (senin paylaştığın sınıfta public)
-            target.maxHP = stats.MaxHealth;
+            // HealthManager'a yaz (refill opsiyonu ile)
+            int newMax = Mathf.Max(1, stats.MaxHealth);
+            hm.SetMaxHP(newMax, keepRatio: false); // stats'tan gelen değere tam geç
+            hm.RefillToMax();                      // CurrentHP = MaxHP
+            hm.SetBlock(0);                        // başlangıçta block temiz (opsiyonel)
         }
         else
         {
-            // Fallback: PlayerStats yoksa direkt Combatant alanlarına yaz
-            int hp = Mathf.Max(1, data.maxHealth);
-            target.maxHP   = hp;                  // public field (paylaştığın koddaki gibi)
-            target.CurrentHP = hp;
+            // Fallback: PlayerStats yoksa direkt PlayerData'dan HealthManager'a yaz
+            int newMax = Mathf.Max(1, data.maxHealth);
+            hm.SetMaxHP(newMax, keepRatio: false);
+            hm.RefillToMax();
+            hm.SetBlock(0); // opsiyonel
         }
 
-        // Not: Kurallar (maxRange) oyun genel kural yöneticisinden okunuyorsa
-        // burada bulup set edebilirsin (örn. BlackjackRules.SetMaxRange(data.maxRange)).
-        // Bu satırlar projendeki kural akışına göre eklenebilir.
+        // NOT: Attack/Defense threshold veya diğer savaş statları PlayerStats/Rule sisteminden geliyorsa
+        // onları GameDirector/RelicStatsSync tarafında senkronize etmeye devam edelim.
     }
 }

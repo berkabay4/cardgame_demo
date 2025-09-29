@@ -4,19 +4,20 @@ using UnityEngine;
 [Serializable]
 public class AttackRangeBonusEffect : IRelicEffect
 {
-    [Min(1)] public int flatBonusPerStack = 5;  // her stack başına +5
-    public bool applyToPlayer = true;           // ileride düşmanlara da açmak istersen
-    public bool onlyOnPlayerTurn = true;        // sadece PlayerAtk adımında uygula
+    [Min(1)] public int  flatBonusPerStack = 5; // her stack +5
+    public bool applyToPlayer = true;           // oyuncuya uygula
+    public bool applyToEnemies = false;         // istersen düşmanlara da aç
+    public bool onlyOnAttackPhase = true;       // sadece Attack eşiğinde/bağlamında
 
-    // === lifecycle ===
-    public void OnAcquire (RelicRuntime r, RelicContext c)
+    // ===== lifecycle (log) =====
+    public void OnAcquire(RelicRuntime r, RelicContext c)
     {
-        c.director?.Log($"[{r.def.displayName}] Attack range bonusu aktif (+{flatBonusPerStack} x{Mathf.Max(1,r.stacks)}).");
+        if (c?.director != null)
+            c.director.Log($"[{r.def.displayName}] +AttackThreshold: +{flatBonusPerStack} x{Mathf.Max(1, r.stacks)}");
     }
-
-    public void OnLose (RelicRuntime r, RelicContext c)
+    public void OnLose(RelicRuntime r, RelicContext c)
     {
-        c.director?.Log($"[{r.def.displayName}] Attack range bonusu kaldırıldı.");
+        c?.director?.Log($"[{r.def.displayName}] AttackThreshold bonusu kaldırıldı.");
     }
 
     public void OnTurnStart(RelicRuntime r, RelicContext c) {}
@@ -25,24 +26,51 @@ public class AttackRangeBonusEffect : IRelicEffect
     public void OnCardDrawn(RelicRuntime r, RelicContext c, Card drawn) {}
     public void OnCardPlayed(RelicRuntime r, RelicContext c, Card played) {}
 
-    // === pipelines ===
-    // Not: "AttackRange bonusu"nu, saldırı toplamının efektif değerine FLAT ekleme olarak yorumladık.
-    // Eğer gerçek hedefin "threshold"ü artırmaksa, CombatContext tarafında ayrı bir modifier hattı açmanı öneririm.
-    public float ModifyAttackValue(RelicRuntime r, RelicContext c, float baseValue, ref bool applied)
+    // ===== value pipelines (dokunmuyor) =====
+    public float ModifyAttackValue (RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
+    public float ModifyDefenseValue(RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
+    public float ModifyDamageDealt(RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
+    public int   ModifyDrawCount  (RelicRuntime r, RelicContext c, int baseValue, ref bool applied)    => baseValue;
+    public int   ModifyEnergyGain (RelicRuntime r, RelicContext c, int baseValue, ref bool applied)    => baseValue;
+
+    // ===== genel stat pipeline =====
+    public float ModifyStat(RelicRuntime r, RelicContext c, StatId stat, float baseValue, ref bool applied)
     {
         if (!r.isEnabled) return baseValue;
-        if (onlyOnPlayerTurn && c.step != TurnStep.PlayerAtk) return baseValue;
+        if (stat != StatId.AttackThreshold) return baseValue;
+        if (!ShouldApplyToContext(c)) return baseValue;
 
-        // Şimdilik sadece oyuncuya uygula (ileride düşman için genişletebilirsin)
-        if (!applyToPlayer) return baseValue;
-
-        applied = true;
         int delta = flatBonusPerStack * Mathf.Max(1, r.stacks);
+        applied = true;
         return baseValue + delta;
     }
 
-    public float ModifyDefenseValue(RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
-    public float ModifyDamageDealt(RelicRuntime r, RelicContext c, float baseValue, ref bool applied) => baseValue;
-    public int   ModifyDrawCount  (RelicRuntime r, RelicContext c, int baseValue, ref bool applied) => baseValue;
-    public int   ModifyEnergyGain (RelicRuntime r, RelicContext c, int baseValue, ref bool applied) => baseValue;
+    // ===== threshold (geriye dönük uyumluluk) =====
+    public int ModifyAttackThreshold(RelicRuntime r, RelicContext c, int baseValue, ref bool applied)
+    {
+        float v = ModifyStat(r, c, StatId.AttackThreshold, baseValue, ref applied);
+        return Mathf.RoundToInt(v);
+    }
+
+    public int ModifyDefenseThreshold(RelicRuntime r, RelicContext c, int baseValue, ref bool applied)
+        => baseValue;
+
+    // ===== helpers =====
+    bool ShouldApplyToContext(RelicContext c)
+    {
+        if (c == null) return true; // güvenli varsayım
+
+        // Hangi aktöre?
+        bool actorOk =
+            (applyToPlayer  && c.thresholdForActor == Actor.Player) ||
+            (applyToEnemies && c.thresholdForActor == Actor.Enemy);
+
+        if (!actorOk) return false;
+
+        // Hangi faz/bağlam?
+        if (onlyOnAttackPhase && c.thresholdForPhase != PhaseKind.Attack)
+            return false;
+
+        return true;
+    }
 }
