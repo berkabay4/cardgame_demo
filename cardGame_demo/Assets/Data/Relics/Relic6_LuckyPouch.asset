@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4a10229af8697947803891033a4531d, type: 3}
+  m_Name: Relic6_LuckyPouch
+  m_EditorClassIdentifier: 
+  relicId: 05
+  displayName: relic05
+  descriptionTemplate: 
+  icon: {fileID: 781615245368611544, guid: 241f742f0911c3a428eea6612ae23b77, type: 3}
+  rarity: 0
+  stackRule: 1
+  maxStacks: 99
+  effects:
+  - rid: 4273640760209571912
+  references:
+    version: 2
+    RefIds:
+    - rid: 4273640760209571912
+      type: {class: DamageEnemiesOnTurnStartEffect, ns: , asm: Assembly-CSharp}
+      data:
+        damagePerStack: 2
+        skipDeadTargets: 1
+        logEachHit: 0

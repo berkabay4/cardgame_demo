@@ -18,6 +18,6 @@ MonoBehaviour:
   maxHealth: 250
   maxAttackRange: 21
   maxDefenceRange: 21
-  maxRewardRange: 21
+  maxRewardRange: 10
   startingCoins: 100
   playerPrefab: {fileID: 7279929192292158669, guid: 93693de73be6c794aaf3316bcc8f0bcb, type: 3}
