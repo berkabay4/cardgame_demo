@@ -60,6 +60,7 @@ public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public IntEvent onPlayerDefLocked;
     public IntEvent onPlayerAtkLocked;
     public TargetEvent onTargetChanged;
+    public IReadOnlyList<SimpleCombatant> AliveEnemies => _enemies?.AliveEnemies ?? _enemies?.All ?? new List<SimpleCombatant>();
 
     // --------- Animation Bridge (UI/Animator tarafı bağlanır) ----------
     [Header("Animation Events")]
@@ -314,6 +315,8 @@ void Awake()
     {
         if (!_isGameStarted) return;
         onRoundStarted?.Invoke();
+
+        RelicManager.Instance?.OnTurnStart();
 
         State.ResetForNewTurn();
         Queue.Enqueue(new StartTurnAction(reshuffleWhenLow, lowDeckCount));

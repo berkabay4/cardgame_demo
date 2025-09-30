@@ -109,6 +109,8 @@ public class ResolutionController
         foreach (var e in _enemies.All) if (e) e.CurrentAttack = 0;
         _onRoundResolved?.Invoke();
 
+        RelicManager.Instance?.OnTurnEnd();
+
         GameDirector.Instance.StartNewTurn();
     }
 

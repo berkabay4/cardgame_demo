@@ -76,6 +76,17 @@ public class RelicStatsSync : MonoBehaviour
             ApplyFinal(director, b, finalVal);
         }
     }
+    [SerializeField] bool reapplyOnTurnStart = false;
+
+    void OnEnable()
+    {
+        if (reapplyOnTurnStart)
+            GameDirector.ContextReady += () =>
+            {
+                var gd = GameDirector.Instance;
+                // GameDirector'a küçük bir event ekleyebilir ya da BeginPhase/StartNewTurn içinde çağrılan bir UnityEvent’e abone olabilirsin.
+            };
+    }
     public void ApplyNow()
     {
         StartCoroutine(ApplyRoutine());

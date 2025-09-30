@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4a10229af8697947803891033a4531d, type: 3}
+  m_Name: Relic3_DrawDamage
+  m_EditorClassIdentifier: 
+  relicId: 03
+  displayName: relic03
+  descriptionTemplate: 
+  icon: {fileID: -6676564034453352251, guid: 84e73c5fcbc3d324a9bebf3715abc565, type: 3}
+  rarity: 0
+  stackRule: 1
+  maxStacks: 99
+  effects:
+  - rid: 4273640760209571910
+  references:
+    version: 2
+    RefIds:
+    - rid: 4273640760209571910
+      type: {class: PingEnemiesOnDrawEffect, ns: , asm: Assembly-CSharp}
+      data:
+        damagePerStack: 1
+        onlyOnPlayerPhases: 1
