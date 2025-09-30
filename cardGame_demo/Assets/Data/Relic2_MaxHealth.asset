@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e4a10229af8697947803891033a4531d, type: 3}
   m_Name: Relic2_MaxHealth
   m_EditorClassIdentifier: 
-  relicId: 01
-  displayName: relic01
+  relicId: 02
+  displayName: relic02
   descriptionTemplate: 
   icon: {fileID: -2011412612036983366, guid: 99e1beacf34e67c42afd2d344aefcc3c, type: 3}
   rarity: 0
