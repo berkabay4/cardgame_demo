@@ -15,7 +15,7 @@ MonoBehaviour:
   enemyName: Enemy_PinkMan
   enemyId: enemy_001
   enemySprite: {fileID: -6367560908665664636, guid: d348dff3819df794186a80cb95777629, type: 3}
-  maxHealth: 100
+  maxHealth: 20
   targetattackvalueRange:
     min: 18
     max: 25

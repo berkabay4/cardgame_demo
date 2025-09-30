@@ -123,7 +123,19 @@ public class PlayerSpawner : MonoBehaviour
         {
             Debug.LogWarning("[PlayerSpawner] CombatContextProvider yok veya Combatant null.");
         }
+        // ---- Player erişim noktası (singleton) ----
+        var playerComp = playerInstance.GetComponent<Player>();
+        if (!playerComp) playerComp = playerInstance.AddComponent<Player>();
 
+        playerComp.AssignFromSpawn(
+            selectedPlayer,
+            Combatant,
+            Health,
+            PlayerStats,
+            owner,
+            handle,
+            PlayerWallet.Instance // varsa ilet
+        );
         // 7) Log
         if (Health)
             Debug.Log($"[PlayerSpawner] Applied PlayerData → name:{selectedPlayer.playerName}, HP:{Health.CurrentHP}/{Health.MaxHP}");

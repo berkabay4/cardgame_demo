@@ -22,6 +22,13 @@ public class PlayerData : ScriptableObject
     public int maxAttackRange = 21;
     public int maxDefenceRange = 21;
 
+    [Header("Rewards / Economy")]
+    [Tooltip("Ödül kart çekme mini-oyunu için üst sınır (örn. 21). Başarıyla <= sınırda kalınırsa bonus = toplam.")]
+    [Min(1)] public int maxRewardRange = 21;
+
+    [Tooltip("Oyuncunun başlangıç coin miktarı (opsiyonel).")]
+    [Min(0)] public int startingCoins = 0;
+
     [Header("Optional")]
     [Tooltip("Sahneye atılacak prefab (SimpleCombatant içerir). Opsiyonel.")]
     public GameObject playerPrefab;
@@ -29,9 +36,9 @@ public class PlayerData : ScriptableObject
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        // Negatif/uygunsuz değerleri toparla
         if (maxHealth < 1) maxHealth = 1;
-
+        if (maxRewardRange < 1) maxRewardRange = 1;
+        if (startingCoins < 0) startingCoins = 0;
     }
 #endif
 }
