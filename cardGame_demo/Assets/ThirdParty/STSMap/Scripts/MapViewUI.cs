@@ -43,31 +43,23 @@ namespace Map
                 : scrollRectVertical;
         }
 
-    protected override void CreateMapParent()
+    protected virtual void CreateMapParent()
     {
-        ScrollRect scrollRect = GetScrollRectForMap();
-        scrollRect.gameObject.SetActive(true);
-
         firstParent = new GameObject("OuterMapParent");
-        firstParent.transform.SetParent(scrollRect.content);
-        firstParent.transform.localScale = Vector3.one;
-        RectTransform fprt = firstParent.AddComponent<RectTransform>();
-        Stretch(fprt);
+        firstParent.transform.position = Vector3.zero;
+        firstParent.transform.rotation = Quaternion.identity;
 
         mapParent = new GameObject("MapParentWithAScroll");
-        mapParent.transform.SetParent(firstParent.transform);
-        mapParent.transform.localScale = Vector3.one;
-        RectTransform mprt = mapParent.AddComponent<RectTransform>();
-        Stretch(mprt);
+        mapParent.transform.SetParent(firstParent.transform, worldPositionStays: false);
+        mapParent.transform.localPosition = Vector3.zero;
+        mapParent.transform.localRotation = Quaternion.identity;
 
-        // >>> YENİ: Nodes parent
-        var nodesGO = new GameObject("Nodes");
-        nodesParent = nodesGO.AddComponent<RectTransform>();
-        nodesParent.SetParent(mapParent.transform, false);
-        Stretch(nodesParent);
+        var scrollNonUi = mapParent.AddComponent<ScrollNonUI>();
+        scrollNonUi.freezeX = orientation == MapOrientation.BottomToTop || orientation == MapOrientation.TopToBottom;
+        scrollNonUi.freezeY = orientation == MapOrientation.LeftToRight || orientation == MapOrientation.RightToLeft;
 
-        SetMapLength();
-        ScrollToOrigin();
+        var boxCollider = mapParent.AddComponent<BoxCollider>();
+        boxCollider.size = new Vector3(100, 100, 1);
     }
 
         private void SetMapLength()

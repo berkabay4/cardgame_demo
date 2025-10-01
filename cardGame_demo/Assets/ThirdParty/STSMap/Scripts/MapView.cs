@@ -94,6 +94,8 @@ namespace Map
 
             CreateNodes(m.nodes);
 
+            NormalizeToOrigin(NormalizeMode.StartNode); 
+
             DrawLines();
 
             SetOrientation();
@@ -127,12 +129,19 @@ namespace Map
         protected virtual void CreateMapParent()
         {
             firstParent = new GameObject("OuterMapParent");
+            firstParent.transform.position = Vector3.zero;
+            firstParent.transform.rotation = Quaternion.identity;
+
             mapParent = new GameObject("MapParentWithAScroll");
-            mapParent.transform.SetParent(firstParent.transform);
-            ScrollNonUI scrollNonUi = mapParent.AddComponent<ScrollNonUI>();
+            mapParent.transform.SetParent(firstParent.transform, worldPositionStays: false);
+            mapParent.transform.localPosition = Vector3.zero;
+            mapParent.transform.localRotation = Quaternion.identity;
+
+            var scrollNonUi = mapParent.AddComponent<ScrollNonUI>();
             scrollNonUi.freezeX = orientation == MapOrientation.BottomToTop || orientation == MapOrientation.TopToBottom;
             scrollNonUi.freezeY = orientation == MapOrientation.LeftToRight || orientation == MapOrientation.RightToLeft;
-            BoxCollider boxCollider = mapParent.AddComponent<BoxCollider>();
+
+            var boxCollider = mapParent.AddComponent<BoxCollider>();
             boxCollider.size = new Vector3(100, 100, 1);
         }
 
@@ -223,113 +232,108 @@ namespace Map
                 lineConnection?.SetColor(lineVisitedColor);
             }
         }
-protected  void SetOrientation()
-{
-    // 0) Harita referansı
-    var currentMap = Map != null ? Map : mapManager != null ? mapManager.CurrentMap : null;
-    if (currentMap == null)
+    protected  void SetOrientation()
     {
-        Debug.LogError("[MapView] SetOrientation: Map is NULL (ne Map ne mapManager.CurrentMap var).");
-        return;
-    }
+        var currentMap = Map != null ? Map : mapManager != null ? mapManager.CurrentMap : null;
+        if (currentMap == null)
+        {
+            Debug.LogError("[MapView] SetOrientation: Map null");
+            return;
+        }
 
-    // 1) Kamera (Main Camera etiketi yoksa fallback)
-    if (cam == null)
-    {
-        cam = Camera.main;
         if (cam == null)
         {
-            cam = FindFirstObjectByType<Camera>();
-            if (cam == null)
+            cam = Camera.main ?? FindFirstObjectByType<Camera>();
+        }
+
+        var scrollNonUi = mapParent != null ? mapParent.GetComponent<ScrollNonUI>() : null;
+
+        float span = currentMap.DistanceBetweenFirstAndLastLayers();
+
+        // bossNode Y'sini **LOCAL** al
+        MapNode bossNode = MapNodes.FirstOrDefault(n => n.Node.nodeType == NodeType.Boss);
+        float bossYLocal;
+        if (bossNode != null) bossYLocal = bossNode.transform.localPosition.y;
+        else
+        {
+            var lastRow = MapNodes.OrderByDescending(n => n.Node.point.y).FirstOrDefault();
+            bossYLocal = lastRow != null ? lastRow.transform.localPosition.y : 0f;
+            Debug.LogWarning("[MapView] Boss bulunamadı, son katman referans alındı.");
+        }
+
+        // 1) firstParent'ı kameranın önüne **WORLD** olarak koy
+        if (cam != null)
+            firstParent.transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f);
+        else
+            firstParent.transform.position = Vector3.zero;
+
+        // 2) mapParent rotasyonunu oryantasyona göre ayarla (her seferinde mutlak)
+        switch (orientation)
+        {
+            case MapOrientation.BottomToTop:
+                mapParent.transform.localRotation = Quaternion.identity;
+                break;
+            case MapOrientation.TopToBottom:
+                mapParent.transform.localRotation = Quaternion.Euler(0, 0, 180);
+                break;
+            case MapOrientation.RightToLeft:
+                mapParent.transform.localRotation = Quaternion.Euler(0, 0, 90);
+                break;
+            case MapOrientation.LeftToRight:
+                mapParent.transform.localRotation = Quaternion.Euler(0, 0, -90);
+                break;
+        }
+
+        // 3) Scroll sınırları (mutlak)
+        float offset = orientationOffset * (orientation == MapOrientation.LeftToRight || orientation == MapOrientation.RightToLeft
+            ? (cam != null ? cam.aspect : 1f)
+            : 1f);
+
+        if (scrollNonUi != null)
+        {
+            switch (orientation)
             {
-                Debug.LogWarning("[MapView] SetOrientation: scene'de Camera bulunamadı. Kamera-bağımlı yerleşim atlandı.");
+                case MapOrientation.BottomToTop:
+                    scrollNonUi.yConstraints.max = 0;
+                    scrollNonUi.yConstraints.min = -(span + 2f * offset);
+                    break;
+                case MapOrientation.TopToBottom:
+                    scrollNonUi.yConstraints.min = 0;
+                    scrollNonUi.yConstraints.max =  span + 2f * offset;
+                    break;
+                case MapOrientation.RightToLeft:
+                    scrollNonUi.xConstraints.max =  span + 2f * offset;
+                    scrollNonUi.xConstraints.min = 0;
+                    break;
+                case MapOrientation.LeftToRight:
+                    scrollNonUi.xConstraints.max = 0;
+                    scrollNonUi.xConstraints.min = -(span + 2f * offset);
+                    break;
             }
         }
+
+        // 4) **LOCAL** offset'i tek seferde ata (+= değil!)
+        Vector3 local = Vector3.zero;
+        switch (orientation)
+        {
+            case MapOrientation.BottomToTop:
+                local = new Vector3(0,  offset, 0);
+                break;
+            case MapOrientation.TopToBottom:
+                local = new Vector3(0, -offset, 0);
+                break;
+            case MapOrientation.RightToLeft:
+                // önceki kod world bossY kullanıyordu, burada **local** kullanıyoruz
+                local = new Vector3(-offset, -bossYLocal, 0);
+                break;
+            case MapOrientation.LeftToRight:
+                local = new Vector3( offset,  bossYLocal, 0);
+                break;
+        }
+        firstParent.transform.localPosition = local;
+
+        Debug.Log($"[MapView] SetOrientation span={span} bossYLocal={bossYLocal} camAspect={(cam?cam.aspect:0f)} local={local}");
     }
-
-    // 2) Scroll bileşeni alınır (yoksa sorun değil)
-    ScrollNonUI scrollNonUi = mapParent != null ? mapParent.GetComponent<ScrollNonUI>() : null;
-
-    // 3) Span ve Boss bilgisi
-    float span = currentMap.DistanceBetweenFirstAndLastLayers();
-    MapNode bossNode = MapNodes.FirstOrDefault(node => node.Node.nodeType == NodeType.Boss);
-    float bossY = 0f;
-    if (bossNode == null)
-    {
-        // Boss yoksa son katmandaki ilk nodu referans al
-        var lastRowNode = MapNodes.OrderByDescending(n => n.Node.point.y).FirstOrDefault();
-        bossY = lastRowNode != null ? lastRowNode.transform.localPosition.y : 0f;
-        Debug.LogWarning("[MapView] SetOrientation: Boss node bulunamadı, son katmandan referans alındı.");
-    }
-    else
-    {
-        bossY = bossNode.transform.localPosition.y;
-    }
-
-    Debug.Log($"[MapView] SetOrientation span={span} camAspect={(cam ? cam.aspect : 0f)} bossY={bossY}");
-
-    // 4) firstParent'ı kamera önüne yerleştir
-    if (firstParent == null)
-    {
-        Debug.LogError("[MapView] SetOrientation: firstParent NULL. CreateMapParent() çağrısı/bileşen sırası kontrol edilmeli.");
-        return;
-    }
-
-    if (cam != null)
-    {
-        firstParent.transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f);
-    }
-
-    // 5) Yerleşim / kaydırma sınırları
-    float offset = orientationOffset;
-    switch (orientation)
-    {
-        case MapOrientation.BottomToTop:
-            if (scrollNonUi != null)
-            {
-                scrollNonUi.yConstraints.max = 0;
-                scrollNonUi.yConstraints.min = -(span + 2f * offset);
-            }
-            firstParent.transform.localPosition += new Vector3(0, offset, 0);
-            break;
-
-        case MapOrientation.TopToBottom:
-            if (mapParent != null) mapParent.transform.eulerAngles = new Vector3(0, 0, 180);
-            if (scrollNonUi != null)
-            {
-                scrollNonUi.yConstraints.min = 0;
-                scrollNonUi.yConstraints.max = span + 2f * offset;
-            }
-            firstParent.transform.localPosition += new Vector3(0, -offset, 0);
-            break;
-
-        case MapOrientation.RightToLeft:
-            offset *= (cam != null ? cam.aspect : 1f);
-            if (mapParent != null) mapParent.transform.eulerAngles = new Vector3(0, 0, 90);
-            // bossY null olsaydı 0 olarak gelir
-            firstParent.transform.localPosition -= new Vector3(offset, bossY, 0);
-            if (scrollNonUi != null)
-            {
-                scrollNonUi.xConstraints.max = span + 2f * offset;
-                scrollNonUi.xConstraints.min = 0;
-            }
-            break;
-
-        case MapOrientation.LeftToRight:
-            offset *= (cam != null ? cam.aspect : 1f);
-            if (mapParent != null) mapParent.transform.eulerAngles = new Vector3(0, 0, -90);
-            firstParent.transform.localPosition += new Vector3(offset, -bossY, 0);
-            if (scrollNonUi != null)
-            {
-                scrollNonUi.xConstraints.max = 0;
-                scrollNonUi.xConstraints.min = -(span + 2f * offset);
-            }
-            break;
-
-        default:
-            throw new ArgumentOutOfRangeException();
-    }
-}
 
         private void DrawLines()
         {
@@ -345,6 +349,46 @@ protected  void SetOrientation()
             foreach (MapNode node in MapNodes)
                 node.transform.rotation = Quaternion.identity;
         }
+    private enum NormalizeMode { StartNode, Center }
+
+    private void NormalizeToOrigin(NormalizeMode mode)
+    {
+        if (MapNodes.Count == 0 || mapParent == null) return;
+
+        Vector3 delta = Vector3.zero;
+
+        if (mode == NormalizeMode.StartNode)
+        {
+            // row==0’daki en soldaki node'u referans al
+            var start = MapNodes
+                .Where(n => n.Node.point.y == 0)
+                .OrderBy(n => n.Node.point.x)
+                .FirstOrDefault();
+
+            if (start != null)
+                delta = -start.transform.localPosition;
+        }
+        else // Center
+        {
+            var min = new Vector2(float.MaxValue, float.MaxValue);
+            var max = new Vector2(float.MinValue, float.MinValue);
+            foreach (var n in MapNodes)
+            {
+                var p = (Vector2)n.transform.localPosition;
+                min = Vector2.Min(min, p);
+                max = Vector2.Max(max, p);
+            }
+            var center = (min + max) * 0.5f;
+            delta = -(Vector3)center;
+        }
+
+        // parent'ı kaydırmak yeterli (nodelara tek tek dokunma)
+        mapParent.transform.localPosition += delta;
+
+        // Teşhis
+        var sample = MapNodes[0].transform.localPosition;
+        Debug.Log($"[MapView] NormalizeToOrigin mode={mode} delta={delta} sampleAfter={sample}");
+    }
 
         protected virtual void AddLineConnection(MapNode from, MapNode to)
         {
