@@ -2,94 +2,100 @@
 using System.Linq;
 using DG.Tweening;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace Map
 {
+    [DisallowMultipleComponent]
     public class MapPlayerTracker : MonoBehaviour
     {
+        [Header("Flow")]
         public bool lockAfterSelecting = false;
-        public float enterNodeDelay = 1f;
+        [Min(0f)] public float enterNodeDelay = 1f;
+
+        [Header("Refs")]
         public MapManager mapManager;
         public MapView view;
 
         public static MapPlayerTracker Instance;
 
-        public bool Locked { get; set; }
+        /// <summary>Seçim ve giriş olayları (köprü buraya bağlanır)</summary>
+        [Header("Events")]
+        public UnityEvent<MapNode> onNodeSelected = new(); // path’e eklendi, swirl başladı
+        public UnityEvent<MapNode> onNodeEntered  = new(); // gecikme bitti, sahne/GUI açılabilir
 
-        private void Awake()
-        {
-            Instance = this;
-        }
+        public bool Locked { get; private set; }
+
+        void Awake() => Instance = this;
 
         public void SelectNode(MapNode mapNode)
         {
-            if (Locked) return;
+            if (Locked || mapNode == null) return;
 
-            // Debug.Log("Selected node: " + mapNode.Node.point);
-
+            // Erişilebilirlik kontrolü
             if (mapManager.CurrentMap.path.Count == 0)
             {
-                // player has not selected the node yet, he can select any of the nodes with y = 0
-                if (mapNode.Node.point.y == 0)
-                    SendPlayerToNode(mapNode);
-                else
+                // İlk seçim: row==0 olmalı
+                if (mapNode.Node.point.y != 0)
+                {
                     PlayWarningThatNodeCannotBeAccessed();
+                    return;
+                }
+
+                SendPlayerToNode(mapNode);
+                return;
+            }
+
+            // Devam eden run: mevcut noktadan outgoing’de olmalı
+            var currentPoint = mapManager.CurrentMap.path[^1];
+            var currentNode  = mapManager.CurrentMap.GetNode(currentPoint);
+
+            if (currentNode != null && currentNode.outgoing.Any(p => p.Equals(mapNode.Node.point)))
+            {
+                SendPlayerToNode(mapNode);
             }
             else
             {
-                Vector2Int currentPoint = mapManager.CurrentMap.path[mapManager.CurrentMap.path.Count - 1];
-                Node currentNode = mapManager.CurrentMap.GetNode(currentPoint);
-
-                if (currentNode != null && currentNode.outgoing.Any(point => point.Equals(mapNode.Node.point)))
-                    SendPlayerToNode(mapNode);
-                else
-                    PlayWarningThatNodeCannotBeAccessed();
+                PlayWarningThatNodeCannotBeAccessed();
             }
         }
 
-        private void SendPlayerToNode(MapNode mapNode)
+        void SendPlayerToNode(MapNode mapNode)
         {
+            if (mapNode == null) return;
+
+            // Kilitle ve path’i güncelle
             Locked = lockAfterSelecting;
             mapManager.CurrentMap.path.Add(mapNode.Node.point);
             mapManager.SaveMap();
+
+            // Görsel güncellemeler
             view.SetAttainableNodes();
             view.SetLineColors();
             mapNode.ShowSwirlAnimation();
 
-            DOTween.Sequence().AppendInterval(enterNodeDelay).OnComplete(() => EnterNode(mapNode));
+            // Olay: seçildi (köprü isterse burada UI feedback verebilir)
+            onNodeSelected?.Invoke(mapNode);
+
+            // Giriş gecikmesi sonra “entered” olayını yayınla
+            DOTween.Sequence()
+                   .AppendInterval(enterNodeDelay)
+                   .OnComplete(() => EnterNode(mapNode));
         }
 
-        private static void EnterNode(MapNode mapNode)
+        void EnterNode(MapNode mapNode)
         {
-            // we have access to blueprint name here as well
-            Debug.Log("Entering node: " + mapNode.Node.blueprintName + " of type: " + mapNode.Node.nodeType);
-            // load appropriate scene with context based on nodeType:
-            // or show appropriate GUI over the map: 
-            // if you choose to show GUI in some of these cases, do not forget to set "Locked" in MapPlayerTracker back to false
-            switch (mapNode.Node.nodeType)
-            {
-                case NodeType.MinorEnemy:
-                    break;
-                case NodeType.EliteEnemy:
-                    break;
-                case NodeType.RestSite:
-                    break;
-                case NodeType.Treasure:
-                    break;
-                case NodeType.Store:
-                    break;
-                case NodeType.Boss:
-                    break;
-                case NodeType.Mystery:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            // Olay: artık sahne/GUI açabilirsiniz (combat/rest/shop vs.)
+            onNodeEntered?.Invoke(mapNode);
+            // Not: Lock’ı köprü/sahne geçişi başlatıyorsa açık kalsın.
+            // GUI üzerinde kalan akışlarda köprü işini bitirdiğinde Unlock() çağırabilir.
         }
 
-        private void PlayWarningThatNodeCannotBeAccessed()
+        public void Unlock() => Locked = false; // GUI akışları bitince çağır
+
+        void PlayWarningThatNodeCannotBeAccessed()
         {
-            Debug.Log("Selected node cannot be accessed");
+            Debug.Log("[MapPlayerTracker] Selected node cannot be accessed.");
         }
     }
 }
