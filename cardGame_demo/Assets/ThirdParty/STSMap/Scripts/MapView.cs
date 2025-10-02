@@ -332,7 +332,7 @@ namespace Map
         }
         firstParent.transform.localPosition = local;
 
-        Debug.Log($"[MapView] SetOrientation span={span} bossYLocal={bossYLocal} camAspect={(cam?cam.aspect:0f)} local={local}");
+        // Debug.Log($"[MapView] SetOrientation span={span} bossYLocal={bossYLocal} camAspect={(cam?cam.aspect:0f)} local={local}");
     }
 
         private void DrawLines()
@@ -387,7 +387,7 @@ namespace Map
 
         // Teşhis
         var sample = MapNodes[0].transform.localPosition;
-        Debug.Log($"[MapView] NormalizeToOrigin mode={mode} delta={delta} sampleAfter={sample}");
+        // Debug.Log($"[MapView] NormalizeToOrigin mode={mode} delta={delta} sampleAfter={sample}");
     }
 
         protected virtual void AddLineConnection(MapNode from, MapNode to)

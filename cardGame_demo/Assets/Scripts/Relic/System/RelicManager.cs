@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +10,9 @@ public class RelicManager : MonoBehaviour
     // ==== Singleton ====
     public static RelicManager Instance { get; private set; }
 
+    [Header("Lifecycle")]
+    [SerializeField] private bool dontDestroyOnLoad = true;
+
     // ==== Events ====
     /// Envanter değiştiğinde tetiklenir (Acquire/Lose/Enable/Disable/SetStacks/Clear).
     public event Action OnRelicsChanged;
@@ -17,12 +21,12 @@ public class RelicManager : MonoBehaviour
     public void RaiseRelicsChanged()
     {
         OnRelicsChanged?.Invoke();
-        if (combatDirector?.Events != null)
-            combatDirector.Events.OnRelicsChanged?.Invoke();
+        if (_combatDirector?.Events != null)
+            _combatDirector.Events.OnRelicsChanged?.Invoke();
     }
 
     // ==== Refs / Data ====
-    [SerializeField] private CombatDirector combatDirector;
+    [SerializeField] private CombatDirector _combatDirector;            
     [SerializeField] private List<RelicRuntime> relics = new();
 
     [Header("Modifier Order (reserved)")]
@@ -36,7 +40,19 @@ public class RelicManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+
+        if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+
         ResolveDirectorIfNull();
+
+        // CombatScene yüklendiğinde GameDirector genelde o sahnede spawn olur.
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     private void OnValidate()
@@ -44,10 +60,18 @@ public class RelicManager : MonoBehaviour
         if (!Application.isPlaying) ResolveDirectorIfNull();
     }
 
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // Her sahne değişiminde yeniden dener
+        ResolveDirectorIfNull();
+    }
+
     private void ResolveDirectorIfNull()
     {
-        if (!combatDirector)
-            combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        // Önce singleton, sonra sahnede ara
+        if (!_combatDirector)
+            _combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        // Combat sahnesi dışındaki sahnelerde _combatDirector NULL olabilir – sorun değil.
     }
 
     // ==== Queries / Accessors ====
@@ -68,16 +92,14 @@ public class RelicManager : MonoBehaviour
     // ==== Mutations ====
     public void Acquire(RelicDefinition def, int stacks = 1)
     {
-        if (!def) { combatDirector?.Log("[Relic] Acquire: null definition."); return; }
+        if (!def) { _combatDirector?.Log("[Relic] Acquire: null definition."); return; }
 
         var existing = Get(def.relicId);
         if (existing != null && existing.def != def)
         {
             Debug.LogWarning($"[Relic] Duplicate relicId '{def.relicId}' across different assets: " +
-                            $"existing='{existing.def.name}', new='{def.name}'. " +
-                            $"Stacking will affect the EXISTING one.");
+                             $"existing='{existing.def.name}', new='{def.name}'. Stacking will affect the EXISTING one.");
         }
-
 
         var ctx = BuildContext();
 
@@ -86,13 +108,13 @@ public class RelicManager : MonoBehaviour
             switch (def.stackRule)
             {
                 case RelicStackRule.Unique:
-                    combatDirector?.Log($"[{def.displayName}] zaten var (Unique).");
+                    _combatDirector?.Log($"[{SafeName(def)}] zaten var (Unique).");
                     RaiseRelicsChanged();
                     return;
 
                 case RelicStackRule.Stackable:
                     existing.stacks = Mathf.Clamp(existing.stacks + stacks, 1, def.maxStacks);
-                    combatDirector?.Log($"[{def.displayName}] stack oldu: {existing.stacks}.");
+                    _combatDirector?.Log($"[{SafeName(def)}] stack oldu: {existing.stacks}.");
                     break;
 
                 case RelicStackRule.ReplaceLower:
@@ -120,7 +142,7 @@ public class RelicManager : MonoBehaviour
             if (def.effects != null)
                 foreach (var e in def.effects) e?.OnAcquire(rt, ctx);
 
-            combatDirector?.Log($"+ Relic: {def.displayName}");
+            _combatDirector?.Log($"+ Relic: {SafeName(def)}");
         }
 
         RaiseRelicsChanged();
@@ -184,10 +206,10 @@ public class RelicManager : MonoBehaviour
     {
         ResolveDirectorIfNull();
 
-        var player = combatDirector ? combatDirector.Player : null;
-        var ctx = new RelicContext(combatDirector, player, targetEnemy);
+        var player = _combatDirector ? _combatDirector.Player : null;
+        var ctx = new RelicContext(_combatDirector, player, targetEnemy);
 
-        var st = combatDirector ? combatDirector.State : null;
+        var st = _combatDirector ? _combatDirector.State : null;
         if (st != null)
         {
             ctx.step = st.Step;
@@ -198,6 +220,7 @@ public class RelicManager : MonoBehaviour
             ctx.enemyAtkTotals   = st.EnemyAtkTotals;
             ctx.enemyDefTotals   = st.EnemyDefTotals;
 
+            // (İstersen burada gerçek sayıları doldurabilirsin)
             ctx.turnNumber = 0;
             ctx.deckCount = 0;
             ctx.discardCount = 0;
@@ -206,6 +229,7 @@ public class RelicManager : MonoBehaviour
         }
         else
         {
+            // Combat yoksa default/boş bir durum dön
             ctx.step = TurnStep.PlayerAtk;
             ctx.playerAtkTotal = 0;
             ctx.playerDefTotal = 0;
@@ -219,7 +243,7 @@ public class RelicManager : MonoBehaviour
         return ctx;
     }
 
-    // ==== Hook relay ====
+    // ==== Hook relay (combat varsa işler, yoksa no-op) ====
     public void OnTurnStart()
     {
         var ctx = BuildContext();
@@ -290,6 +314,7 @@ public class RelicManager : MonoBehaviour
                 }
         return v;
     }
+
     public float ApplyStatModifiers(StatId stat, float baseValue, Actor actor, PhaseKind phase)
     {
         var ctx = BuildContext();
@@ -311,7 +336,7 @@ public class RelicManager : MonoBehaviour
                     int vi = Mathf.RoundToInt(v);
                     vi = e.ModifyAttackThreshold(r, ctx, vi, ref applied);
                     v = vi;
-                    if (applied) continue; // ← özel çalıştıysa genel çalışmasın
+                    if (applied) continue; // özel çalıştıysa genel çalışmasın
                 }
                 else if (stat == StatId.DefenseThreshold)
                 {
@@ -327,11 +352,13 @@ public class RelicManager : MonoBehaviour
         return v;
     }
 
-
-
     public int ApplyAttackThresholdModifiers(int baseValue, Actor actor, PhaseKind phase)
         => Mathf.RoundToInt(ApplyStatModifiers(StatId.AttackThreshold, baseValue, actor, phase));
 
     public int ApplyDefenseThresholdModifiers(int baseValue, Actor actor, PhaseKind phase)
         => Mathf.RoundToInt(ApplyStatModifiers(StatId.DefenseThreshold, baseValue, actor, phase));
+
+    // ==== helpers ====
+    private static string SafeName(RelicDefinition def)
+        => string.IsNullOrEmpty(def?.displayName) ? (def ? def.name : "Relic") : def.displayName;
 }
