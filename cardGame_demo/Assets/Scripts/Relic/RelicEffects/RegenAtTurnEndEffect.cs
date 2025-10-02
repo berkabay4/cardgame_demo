@@ -9,10 +9,10 @@ public class RegenAtTurnEndEffect : IRelicEffect
     public bool healEnemies = false;
 
     public void OnAcquire (RelicRuntime r, RelicContext c)
-        => c?.director?.Log($"[{r.def.displayName}] Her tur sonunda +{healPerStack} HP (x{Mathf.Max(1,r.stacks)}).");
+        => c?.combatDirector?.Log($"[{r.def.displayName}] Her tur sonunda +{healPerStack} HP (x{Mathf.Max(1,r.stacks)}).");
 
     public void OnLose (RelicRuntime r, RelicContext c)
-        => c?.director?.Log($"[{r.def.displayName}] Regen pasifleşti.");
+        => c?.combatDirector?.Log($"[{r.def.displayName}] Regen pasifleşti.");
 
     // Turn-end: yeni turdan hemen önce
     public void OnTurnEnd(RelicRuntime r, RelicContext c)
@@ -22,7 +22,7 @@ public class RegenAtTurnEndEffect : IRelicEffect
         if (healPlayer && c?.player)
             c.player.GetComponent<HealthManager>()?.Heal(amount);
 
-        if (healEnemies && c?.director)
+        if (healEnemies && c?.combatDirector)
         {
             // Basit: sahnedeki tüm düşmanları bul
             var all = GameObject.FindObjectsOfType<SimpleCombatant>();

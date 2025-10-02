@@ -48,7 +48,7 @@ public class PlayerStats : MonoBehaviour
         // Geriye dönük tek-event (deprecated): ATK değerini yayınlıyoruz
         onMaxRangeChanged?.Invoke(maxAttackRange);
         
-        var dir = GameDirector.Instance;
+        var dir = CombatDirector.Instance;
         if (dir && dir.Ctx != null)
         {
             dir.Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  maxAttackRange);
@@ -89,7 +89,7 @@ public class PlayerStats : MonoBehaviour
     // İsteğe bağlı: CombatContext’e uygula (varsa)
     public void ApplyRangesToContext()
     {
-        var dir = GameDirector.Instance;
+        var dir = CombatDirector.Instance;
         if (dir == null || dir.Ctx == null) return;
 
         dir.Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  maxAttackRange);

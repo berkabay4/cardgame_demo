@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 public class EnemyClickTarget : MonoBehaviour, IPointerClickHandler
 {
     [SerializeField] SimpleCombatant self;
-    [SerializeField] GameDirector coordinator;
+    [SerializeField] CombatDirector combatDirector;
 
     void Awake()
     {
@@ -14,17 +14,17 @@ public class EnemyClickTarget : MonoBehaviour, IPointerClickHandler
 
     void Start()
     {
-        coordinator ??= GameDirector.Instance 
-                     ?? FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        combatDirector ??= CombatDirector.Instance 
+                     ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
         if (eventData.button != PointerEventData.InputButton.Left) return;
-        if (!self || !coordinator || coordinator.State == null) return;
+        if (!self || !combatDirector || combatDirector.State == null) return;
 
         // BattleState üzerinden güvenli okuma
-        var state = coordinator.State;
+        var state = combatDirector.State;
 
         Debug.Log($"[EnemyClickTarget] Click on {name}. waiting={state.WaitingForTarget} step={state.Step}");
 
@@ -32,6 +32,6 @@ public class EnemyClickTarget : MonoBehaviour, IPointerClickHandler
         if (state.Step != TurnStep.SelectTarget || !state.WaitingForTarget)
             return;
 
-        coordinator.SelectTarget(self);
+        combatDirector.SelectTarget(self);
     }
 }

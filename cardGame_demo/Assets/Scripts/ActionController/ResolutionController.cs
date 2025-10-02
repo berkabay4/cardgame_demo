@@ -33,7 +33,7 @@ public class ResolutionController
 
     public IEnumerator ResolveRoundAndRestart()
     {
-        GameDirector.Instance.State.SetStep(TurnStep.Resolve, GameDirector.Instance.onStepChanged, _log);
+        CombatDirector.Instance.State.SetStep(TurnStep.Resolve, CombatDirector.Instance.onStepChanged, _log);
 
         // 1) Player -> Target
         if (_state.CurrentTarget != null && _state.CurrentTarget.CurrentHP > 0)
@@ -111,7 +111,7 @@ public class ResolutionController
 
         RelicManager.Instance?.OnTurnEnd();
 
-        GameDirector.Instance.StartNewTurn();
+        CombatDirector.Instance.StartNewTurn();
     }
 
     bool CheckWinLose()

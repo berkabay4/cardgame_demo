@@ -28,17 +28,17 @@ public class EnemyPhaseController
 
     public IEnumerator PrecomputeBothPhasesThen(Action onDone)
     {
-        var dir = GameDirector.Instance;
-        if (!dir) yield break;
+        var combatDirector = CombatDirector.Instance;
+        if (!combatDirector) yield break;
 
         // EnemyRegistry'yi (şimdilik) refleksiyonla al
-        var registryField = typeof(GameDirector).GetField("_enemies",
+        var registryField = typeof(CombatDirector).GetField("_enemies",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var registry = (EnemyRegistry)registryField?.GetValue(dir);
+        var registry = (EnemyRegistry)registryField?.GetValue(combatDirector);
         if (registry == null || registry.All == null) yield break;
 
         // === ENEMY DEFENSE ===
-        _state.SetStep(TurnStep.EnemyDef, dir.onStepChanged, dir.onLog);
+        _state.SetStep(TurnStep.EnemyDef, combatDirector.onStepChanged, combatDirector.onLog);
         for (int i = 0; i < registry.All.Count; i++)
         {
             var e = registry.All[i];
@@ -61,7 +61,7 @@ public class EnemyPhaseController
         }
 
         // === ENEMY ATTACK ===
-        _state.SetStep(TurnStep.EnemyAtk, dir.onStepChanged, dir.onLog);
+        _state.SetStep(TurnStep.EnemyAtk, combatDirector.onStepChanged, combatDirector.onLog);
         for (int i = 0; i < registry.All.Count; i++)
         {
             var e = registry.All[i];

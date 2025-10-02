@@ -9,10 +9,10 @@ public class PingEnemiesOnDrawEffect : IRelicEffect
 
     // === lifecycle ===
     public void OnAcquire(RelicRuntime r, RelicContext c)
-        => c?.director?.Log($"[{r.def.displayName}] Kart çekiminde düşmanlara {damagePerStack} hasar (x{Mathf.Max(1, r.stacks)}).");
+        => c?.combatDirector?.Log($"[{r.def.displayName}] Kart çekiminde düşmanlara {damagePerStack} hasar (x{Mathf.Max(1, r.stacks)}).");
 
     public void OnLose(RelicRuntime r, RelicContext c)
-        => c?.director?.Log($"[{r?.def?.displayName}] Kart çekiminde hasar etkisi kaldırıldı.");
+        => c?.combatDirector?.Log($"[{r?.def?.displayName}] Kart çekiminde hasar etkisi kaldırıldı.");
 
     // === hooks ===
     public void OnTurnStart(RelicRuntime r, RelicContext c) {}
@@ -28,7 +28,7 @@ public class PingEnemiesOnDrawEffect : IRelicEffect
         }
 
         int dmg = damagePerStack * Mathf.Max(1, r.stacks);
-        if (dmg <= 0 || c?.director == null) return;
+        if (dmg <= 0 || c?.combatDirector == null) return;
 
         // Basit yol: Player dışındaki tüm SimpleCombatant'lara hasar ver
         var all = GameObject.FindObjectsOfType<SimpleCombatant>();

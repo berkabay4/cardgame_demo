@@ -1,13 +1,13 @@
 public class TargetingController
 {
-    readonly GameDirector _host;
+    readonly CombatDirector _host;
     readonly BattleState _state;
     readonly EnemyRegistry _enemies;
     readonly UnityEngine.Events.UnityEvent<bool> _onWaitingChanged;
     readonly UnityEngine.Events.UnityEvent<SimpleCombatant> _onTargetChanged;
     readonly UnityEngine.Events.UnityEvent<string> _log;
 
-    public TargetingController(GameDirector host, BattleState state, EnemyRegistry enemies,
+    public TargetingController(CombatDirector host, BattleState state, EnemyRegistry enemies,
                                UnityEngine.Events.UnityEvent<bool> onWaitingChanged,
                                UnityEngine.Events.UnityEvent<SimpleCombatant> onTargetChanged,
                                UnityEngine.Events.UnityEvent<string> log)

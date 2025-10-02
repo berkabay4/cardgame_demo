@@ -18,7 +18,8 @@ public class RunContext : ScriptableObject
         public bool playerWon;
         public int coins;
     }
-
+    [Header("Run State")]
+    public Act currentAct = Act.Act1;
     public EncounterData pendingEncounter;
     public CombatResult lastCombatResult;
     public int pendingCoins;

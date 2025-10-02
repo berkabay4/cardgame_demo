@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 16a98ea564f13c24e95ec811381071e4, type: 3}
+  m_Name: TresureDatabase
+  m_EditorClassIdentifier: 
+  acts:
+  - act: 1
+    relics: {fileID: 11400000, guid: c2bf89046454c424b9bf3af1da18817a, type: 2}
+    coins: {fileID: 11400000, guid: 329624f9797e1e04aa6119b48787ee17, type: 2}
+  - act: 2
+    relics: {fileID: 11400000, guid: 03ecabea299c79948a151a3a07ee1550, type: 2}
+    coins: {fileID: 11400000, guid: 3383c08e421481445a6ecc65c8612c2e, type: 2}
+  - act: 3
+    relics: {fileID: 11400000, guid: 872c6c8c0a0367e4db8732967ba563c0, type: 2}
+    coins: {fileID: 11400000, guid: 499edcb66c3ae584c8d8f2d495f26d1f, type: 2}

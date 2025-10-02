@@ -19,9 +19,7 @@ public class DeckHUDBinder : MonoBehaviour
     private int _lastCount;     // son kalan
     private Coroutine _pollCo;
     private bool _subscribed;
-
-    // GameDirector'a erişim her zaman singleton üzerinden
-    GameDirector Director => GameDirector.Instance;
+    CombatDirector combatDirector => CombatDirector.Instance;
 
     void Reset()
     {
@@ -62,9 +60,9 @@ public class DeckHUDBinder : MonoBehaviour
     IEnumerator BindWhenDirectorReady()
     {
         // Director oluşana kadar bekle
-        while (Director == null) yield return null;
+        while (combatDirector == null) yield return null;
         // Context oluşana kadar bekle
-        while (Director.Ctx == null) yield return null;
+        while (combatDirector.Ctx == null) yield return null;
 
         // Director event'ine (oyun start) abone ol – ek güvence
         SubscribeDirectorEvents();
@@ -80,17 +78,17 @@ public class DeckHUDBinder : MonoBehaviour
 
     void SubscribeDirectorEvents()
     {
-        if (_subscribed || Director == null) return;
-        Director.onCardDrawn.AddListener(OnAnyCardDrawn);
-        Director.onGameStarted.AddListener(OnDirectorGameStarted);
+        if (_subscribed || combatDirector == null) return;
+        combatDirector.onCardDrawn.AddListener(OnAnyCardDrawn);
+        combatDirector.onGameStarted.AddListener(OnDirectorGameStarted);
         _subscribed = true;
     }
 
     void UnsubscribeDirectorEvents()
     {
-        if (!_subscribed || Director == null) { _subscribed = false; return; }
-        Director.onCardDrawn.RemoveListener(OnAnyCardDrawn);
-        Director.onGameStarted.RemoveListener(OnDirectorGameStarted);
+        if (!_subscribed || combatDirector == null) { _subscribed = false; return; }
+        combatDirector.onCardDrawn.RemoveListener(OnAnyCardDrawn);
+        combatDirector.onGameStarted.RemoveListener(OnDirectorGameStarted);
         _subscribed = false;
     }
 
@@ -114,10 +112,10 @@ public class DeckHUDBinder : MonoBehaviour
         _baseSize = 0;
         _lastCount = 0;
 
-        if (Director?.Ctx == null || owner == null) return;
+        if (combatDirector?.Ctx == null || owner == null) return;
 
         // Context API
-        var deck = Director.Ctx.GetDeckFor(owner);
+        var deck = combatDirector.Ctx.GetDeckFor(owner);
         if (deck != null)
         {
             _deck      = deck;
@@ -128,11 +126,11 @@ public class DeckHUDBinder : MonoBehaviour
 
     void OnAnyCardDrawn(Actor actor, PhaseKind phase, Card _)
     {
-        if (Director == null || Director.Ctx == null || owner == null) return;
+        if (combatDirector == null || combatDirector.Ctx == null || owner == null) return;
 
         // Bu binder’ın sahibine ait çekim mi?
-        if ((actor == Actor.Player && Director.Ctx.Player == owner) ||
-            (actor == Actor.Enemy  && Director.Ctx.Enemy  == owner))
+        if ((actor == Actor.Player && combatDirector.Ctx.Player == owner) ||
+            (actor == Actor.Enemy  && combatDirector.Ctx.Enemy  == owner))
         {
             TouchAndUpdate();
         }

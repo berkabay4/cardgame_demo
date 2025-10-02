@@ -90,15 +90,15 @@ public class EnemySpawner : MonoBehaviour
     }
     void OnEnable()
     {
-        GameDirector.ContextReady += FlushPendingContextRegs;
+        CombatDirector.ContextReady += FlushPendingContextRegs;
     }
     void OnDisable()
     {
-        GameDirector.ContextReady -= FlushPendingContextRegs;
+        CombatDirector.ContextReady -= FlushPendingContextRegs;
     }
     void FlushPendingContextRegs()
     {
-        var ctx = GameDirector.Instance ? GameDirector.Instance.Ctx : null;
+        var ctx = CombatDirector.Instance ? CombatDirector.Instance.Ctx : null;
         if (ctx == null || _pendingCtxRegs.Count == 0) return;
 
         foreach (var p in _pendingCtxRegs)
@@ -210,7 +210,7 @@ public class EnemySpawner : MonoBehaviour
         handle.Bind(owner.Deck);
 
         var sc  = go.GetComponentInChildren<SimpleCombatant>(true);
-        var ctx = GameDirector.Instance ? GameDirector.Instance.Ctx : null;
+        var ctx = CombatDirector.Instance ? CombatDirector.Instance.Ctx : null;
 
         // data’dan faz eşikleri
         int atkMax = (data != null) ? Mathf.Max(5, data.maxAttackRange)  : ((ctx != null) ? ctx.Threshold : 21);  // ← FIX

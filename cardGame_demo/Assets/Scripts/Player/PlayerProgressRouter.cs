@@ -5,7 +5,7 @@ using UnityEngine;
 public class PlayerProgressRouter : MonoBehaviour
 {
     [Header("Refs (auto if empty)")]
-    [SerializeField] GameDirector gameDirector;
+    [SerializeField] CombatDirector combatDirector;
     [SerializeField] TextMeshProUGUI defText; // Canvas/child[0]
     [SerializeField] TextMeshProUGUI atkText; // Canvas/child[1]
 
@@ -20,27 +20,27 @@ public class PlayerProgressRouter : MonoBehaviour
 
     void Awake()
     {
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         if (!defText || !atkText) AutoWire();
     }
 
     void OnEnable()
     {
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
-        if (gameDirector)
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        if (combatDirector)
         {
-            gameDirector.onProgress.AddListener(OnProgress);
-            gameDirector.onRoundStarted.AddListener(OnRoundStarted);
+            combatDirector.onProgress.AddListener(OnProgress);
+            combatDirector.onRoundStarted.AddListener(OnRoundStarted);
         }
         InitToZero();
     }
 
     void OnDisable()
     {
-        if (gameDirector)
+        if (combatDirector)
         {
-            gameDirector.onProgress.RemoveListener(OnProgress);
-            gameDirector.onRoundStarted.RemoveListener(OnRoundStarted);
+            combatDirector.onProgress.RemoveListener(OnProgress);
+            combatDirector.onRoundStarted.RemoveListener(OnRoundStarted);
         }
     }
 
@@ -61,15 +61,15 @@ public class PlayerProgressRouter : MonoBehaviour
             if (!atkText) atkText = canvas.GetChild(1).GetComponentInChildren<TextMeshProUGUI>(true);
         }
 
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
     }
 
     void InitToZero()
     {
-        if (!gameDirector)
-            gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector)
+            combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
 
-        var ctx = (gameDirector != null) ? gameDirector.Ctx : null;
+        var ctx = (combatDirector != null) ? combatDirector.Ctx : null;
 
         int defMax = (ctx != null) ? ctx.GetThreshold(Actor.Player, PhaseKind.Defense) : 21;
         int atkMax = (ctx != null) ? ctx.GetThreshold(Actor.Player, PhaseKind.Attack)  : 21;

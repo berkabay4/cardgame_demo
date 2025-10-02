@@ -12,12 +12,12 @@ public class AttackRangeBonusEffect : IRelicEffect
     // ===== lifecycle (log) =====
     public void OnAcquire(RelicRuntime r, RelicContext c)
     {
-        if (c?.director != null)
-            c.director.Log($"[{r.def.displayName}] +AttackThreshold: +{flatBonusPerStack} x{Mathf.Max(1, r.stacks)}");
+        if (c?.combatDirector != null)
+            c.combatDirector.Log($"[{r.def.displayName}] +AttackThreshold: +{flatBonusPerStack} x{Mathf.Max(1, r.stacks)}");
     }
     public void OnLose(RelicRuntime r, RelicContext c)
     {
-        c?.director?.Log($"[{r.def.displayName}] AttackThreshold bonusu kaldırıldı.");
+        c?.combatDirector?.Log($"[{r.def.displayName}] AttackThreshold bonusu kaldırıldı.");
     }
 
     public void OnTurnStart(RelicRuntime r, RelicContext c) {}

@@ -4,31 +4,31 @@ using UnityEngine;
 public class CombatFlowAdapter : MonoBehaviour
 {
     [SerializeField] RunContext run;
-    [SerializeField] GameDirector director;
+    [SerializeField] CombatDirector combatDirector;
     [SerializeField] UnityEngine.UI.Button startTurnButton;
 
     void Awake()
     {
-        if (!director) director = GameDirector.Instance;
+        if (!combatDirector) combatDirector = CombatDirector.Instance;
         if (startTurnButton) startTurnButton.onClick.AddListener(OnStartPressed);
 
         // Savaş bitti eventlerini yakala
-        director.onGameWin.AddListener(OnWin);
-        director.onGameOver.AddListener(OnLose);
+        combatDirector.onGameWin.AddListener(OnWin);
+        combatDirector.onGameOver.AddListener(OnLose);
     }
 
     void OnDestroy()
     {
-        if (!director) return;
-        director.onGameWin.RemoveListener(OnWin);
-        director.onGameOver.RemoveListener(OnLose);
+        if (!combatDirector) return;
+        combatDirector.onGameWin.RemoveListener(OnWin);
+        combatDirector.onGameOver.RemoveListener(OnLose);
         if (startTurnButton) startTurnButton.onClick.RemoveListener(OnStartPressed);
     }
 
     void OnStartPressed()
     {
         // Sahnede düşmanlar spawn edilmiş olmalı
-        director.StartGame(); // GameDirector içindeki akışı başlatır
+        combatDirector.StartGame(); // GameDirector içindeki akışı başlatır
     }
 
     void OnWin()

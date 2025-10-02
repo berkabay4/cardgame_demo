@@ -5,7 +5,7 @@ using UnityEngine;
 public class RewardOrchestrator : MonoBehaviour
 {
     [Header("Refs")]
-    [SerializeField] private GameDirector director;
+    [SerializeField] private CombatDirector combatDirector;
     [SerializeField] private EconomyConfig economy;
     [SerializeField] private RewardPanelController rewardPanel;
     [SerializeField] private PlayerWallet wallet;
@@ -21,7 +21,7 @@ public class RewardOrchestrator : MonoBehaviour
     // ---- lifecycle ----
     void Reset()
     {
-        director    = GameDirector.Instance ?? FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        combatDirector    = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         wallet      = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
         rewardPanel = FindFirstObjectByType<RewardPanelController>(FindObjectsInactive.Include);
         economy     = FindFirstObjectByType<EconomyConfig>(FindObjectsInactive.Include);
@@ -31,8 +31,8 @@ public class RewardOrchestrator : MonoBehaviour
     {
         rewardPolicy = rewardPolicyAsset as IBattleRewardPolicy;
 
-        if (director == null)
-            director = GameDirector.Instance ?? FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (combatDirector == null)
+            combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         if (wallet == null)
             wallet = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
     }
@@ -40,7 +40,7 @@ public class RewardOrchestrator : MonoBehaviour
     void OnEnable()
     {
         // GameDirector sinyalleri
-        if (director != null) director.onGameWin.AddListener(OnGameWin);
+        if (combatDirector != null) combatDirector.onGameWin.AddListener(OnGameWin);
 
         // Panel sinyali
         if (rewardPanel != null) rewardPanel.onRewardAccepted.AddListener(OnRewardAccepted);
@@ -48,7 +48,7 @@ public class RewardOrchestrator : MonoBehaviour
         // Player’ı çöz ve event’ine abone ol
         TryBindPlayerNow();
         // Director hazır sinyali (oyuncu geç doğarsa)
-        GameDirector.ContextReady += OnContextReady;
+        CombatDirector.ContextReady += OnContextReady;
 
         // Son çare: kısa aralıklarla Player.Instance’ı yokla (spawn sırası bilinmiyorsa)
         if (Player.Instance == null) InvokeRepeating(nameof(TryBindPlayerNow), 0.2f, 0.2f);
@@ -56,10 +56,10 @@ public class RewardOrchestrator : MonoBehaviour
 
     void OnDisable()
     {
-        if (director != null) director.onGameWin.RemoveListener(OnGameWin);
+        if (combatDirector != null) combatDirector.onGameWin.RemoveListener(OnGameWin);
         if (rewardPanel != null) rewardPanel.onRewardAccepted.RemoveListener(OnRewardAccepted);
 
-        GameDirector.ContextReady -= OnContextReady;
+        CombatDirector.ContextReady -= OnContextReady;
 
         UnsubscribePlayerEvents();
         CancelInvoke(nameof(TryBindPlayerNow));
@@ -135,7 +135,7 @@ public class RewardOrchestrator : MonoBehaviour
             Debug.LogWarning("[RewardOrchestrator] PlayerData bulunamadı (Player.Instance yok?). Panel yine açılıyor fakat range default 21 kullanılabilir.");
         }
 
-        int baseReward = rewardPolicy != null ? rewardPolicy.GetBaseReward(director) : 100;
+        int baseReward = rewardPolicy != null ? rewardPolicy.GetBaseReward(combatDirector) : 100;
         var relics = CollectRewardRelicEffects();
 
         rewardPanel.Open(baseReward, pData, economy, relics);

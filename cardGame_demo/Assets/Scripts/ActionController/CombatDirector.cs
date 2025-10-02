@@ -16,11 +16,11 @@ public enum TurnStep { PlayerDef, PlayerAtk, SelectTarget, EnemyDef, EnemyAtk, R
 [System.Serializable] public class TargetEvent : UnityEvent<SimpleCombatant> {}
 
 [DisallowMultipleComponent]
-public class GameDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
+public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 {
     public static event System.Action ContextReady;
     // --------- Singleton ----------
-    public static GameDirector Instance { get; private set; }
+    public static CombatDirector Instance { get; private set; }
 
     [Header("Lifecycle")]
     [SerializeField] private bool dontDestroyOnLoad = true;

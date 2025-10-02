@@ -5,7 +5,7 @@ using UnityEngine;
 public class EnemyProgressRouter : MonoBehaviour
 {
     [Header("Refs (auto if empty)")]
-    [SerializeField] GameDirector gameDirector;
+    [SerializeField] CombatDirector combatDirector;
     [SerializeField] SimpleCombatant self;
     [SerializeField] TextMeshProUGUI defText; // Canvas/child[0]
     [SerializeField] TextMeshProUGUI atkText; // Canvas/child[1]
@@ -25,19 +25,19 @@ public class EnemyProgressRouter : MonoBehaviour
     void Awake()
     {
         if (!self) self = GetComponent<SimpleCombatant>();
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         if (!defText || !atkText) AutoWire();
     }
 
     void OnEnable()
     {
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
-        if (gameDirector)
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        if (combatDirector)
         {
-            gameDirector.onProgress.AddListener(OnProgress);
-            gameDirector.onRoundStarted.AddListener(OnRoundStarted);
-            gameDirector.onEnemyTurnIndexChanged.AddListener(OnEnemyTurnIndexChanged);
-            gameDirector.onEnemyPhaseEnded.AddListener(OnEnemyPhaseEnded);
+            combatDirector.onProgress.AddListener(OnProgress);
+            combatDirector.onRoundStarted.AddListener(OnRoundStarted);
+            combatDirector.onEnemyTurnIndexChanged.AddListener(OnEnemyTurnIndexChanged);
+            combatDirector.onEnemyPhaseEnded.AddListener(OnEnemyPhaseEnded);
         }
         _defLocked = _atkLocked = -1;
         InitToZeroForSelf();
@@ -45,12 +45,12 @@ public class EnemyProgressRouter : MonoBehaviour
 
     void OnDisable()
     {
-        if (gameDirector)
+        if (combatDirector)
         {
-            gameDirector.onProgress.RemoveListener(OnProgress);
-            gameDirector.onRoundStarted.RemoveListener(OnRoundStarted);
-            gameDirector.onEnemyTurnIndexChanged.RemoveListener(OnEnemyTurnIndexChanged);
-            gameDirector.onEnemyPhaseEnded.RemoveListener(OnEnemyPhaseEnded);
+            combatDirector.onProgress.RemoveListener(OnProgress);
+            combatDirector.onRoundStarted.RemoveListener(OnRoundStarted);
+            combatDirector.onEnemyTurnIndexChanged.RemoveListener(OnEnemyTurnIndexChanged);
+            combatDirector.onEnemyPhaseEnded.RemoveListener(OnEnemyPhaseEnded);
         }
     }
 
@@ -67,7 +67,7 @@ public class EnemyProgressRouter : MonoBehaviour
             if (!atkText) atkText = canvas.GetChild(1).GetComponentInChildren<TextMeshProUGUI>(true);
         }
 
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
     }
 
     // --- helpers ---
@@ -84,12 +84,12 @@ int GetPhaseMax(PhaseKind phase)
     }
 
     // 2) Context per-phase threshold (yalnızca bu düşman Context’te aktifse)
-    var ctx = gameDirector ? gameDirector.Ctx : null;
+    var ctx = combatDirector ? combatDirector.Ctx : null;
     if (ctx != null && ctx.Enemy == self)
         return ctx.GetThreshold(Actor.Enemy, phase);
 
     // 3) Fallback
-    return gameDirector ? gameDirector.GetThresholdSafe() : 21;
+    return combatDirector ? combatDirector.GetThresholdSafe() : 0;
 }
 
 void InitToZeroForSelf()
@@ -137,7 +137,7 @@ void OnEnemyPhaseEnded(SimpleCombatant enemy, PhaseKind phase, int total)
         if (actor != Actor.Enemy) return;
 
         // En sağlam filtre: Context’teki aktif enemy bu mu?
-        var ctxEnemy = gameDirector && gameDirector.Ctx != null ? gameDirector.Ctx.Enemy : null;
+        var ctxEnemy = combatDirector && combatDirector.Ctx != null ? combatDirector.Ctx.Enemy : null;
         if (ctxEnemy != self) return;   // ← pasif düşmanların HUD’u hiç etkilenmesin
 
         // Faz kilitliyse yazma

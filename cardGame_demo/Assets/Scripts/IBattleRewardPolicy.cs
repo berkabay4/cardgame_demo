@@ -1,5 +1,5 @@
 public interface IBattleRewardPolicy
 {
     /// <summary> Savaş bittiğinde (win) temel ödülü hesaplar. </summary>
-    int GetBaseReward(GameDirector director);
+    int GetBaseReward(CombatDirector combatDirector);
 }

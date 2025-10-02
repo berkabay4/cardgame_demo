@@ -19,18 +19,18 @@ public class MaxHealthBonusEffect : IRelicEffect
     // ===== lifecycle (log) =====
     public void OnAcquire(RelicRuntime r, RelicContext c)
     {
-        if (c?.director == null || r?.def == null) return;
+        if (c?.combatDirector == null || r?.def == null) return;
 
         string txt = mode == Mode.Flat
             ? $"+MaxHP: +{flatBonusPerStack} x{Mathf.Max(1,r.stacks)}"
             : $"+MaxHP: +{percentPerStack*100f:0.#}% x{Mathf.Max(1,r.stacks)}";
 
-        c.director.Log($"[{r.def.displayName}] {txt}");
+        c.combatDirector.Log($"[{r.def.displayName}] {txt}");
     }
 
     public void OnLose(RelicRuntime r, RelicContext c)
     {
-        c?.director?.Log($"[{r?.def?.displayName}] MaxHP bonusu kaldırıldı.");
+        c?.combatDirector?.Log($"[{r?.def?.displayName}] MaxHP bonusu kaldırıldı.");
     }
 
     public void OnTurnStart(RelicRuntime r, RelicContext c) {}

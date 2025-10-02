@@ -4,7 +4,7 @@ using TMPro;
 public class CombatStateHud : MonoBehaviour
 {
     [Header("Refs")]
-    [SerializeField] GameDirector gameDirector;   // <<< DÜZELT: Multi!
+    [SerializeField] CombatDirector combatDirector;   // <<< DÜZELT: Multi!
 
     [Header("Single Text Output")]
     [SerializeField] TextMeshProUGUI outputText;
@@ -23,28 +23,27 @@ public class CombatStateHud : MonoBehaviour
 
     void Reset()
     {
-        if (!gameDirector) gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         if (!outputText)  outputText  = GetComponentInChildren<TextMeshProUGUI>();
     }
 
     void OnEnable()
     {
-        if (!gameDirector)
-            gameDirector = FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector)
+            combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
 
-        // --- OLMAZSA OLMAZ: Event’lere koddan abone ol ---
-        if (gameDirector != null)
+        if (combatDirector != null)
         {
-            gameDirector.onStepChanged.AddListener(OnStepChanged);
-            gameDirector.onWaitingForTargetChanged.AddListener(OnWaitingForTargetChanged);
-            gameDirector.onRoundStarted.AddListener(OnRoundStarted);
-            gameDirector.onRoundResolved.AddListener(OnRoundResolved);
-            gameDirector.onPlayerDefLocked.AddListener(OnPlayerDefLocked);
-            gameDirector.onPlayerAtkLocked.AddListener(OnPlayerAtkLocked);
-            gameDirector.onTargetChanged.AddListener(OnTargetChanged);
-            gameDirector.onEnemyTurnIndexChanged.AddListener(OnEnemyTurnIndexChanged);
-            gameDirector.onEnemyPhaseStarted.AddListener(OnEnemyPhaseStarted);
-            gameDirector.onEnemyPhaseEnded.AddListener(OnEnemyPhaseEnded);
+            combatDirector.onStepChanged.AddListener(OnStepChanged);
+            combatDirector.onWaitingForTargetChanged.AddListener(OnWaitingForTargetChanged);
+            combatDirector.onRoundStarted.AddListener(OnRoundStarted);
+            combatDirector.onRoundResolved.AddListener(OnRoundResolved);
+            combatDirector.onPlayerDefLocked.AddListener(OnPlayerDefLocked);
+            combatDirector.onPlayerAtkLocked.AddListener(OnPlayerAtkLocked);
+            combatDirector.onTargetChanged.AddListener(OnTargetChanged);
+            combatDirector.onEnemyTurnIndexChanged.AddListener(OnEnemyTurnIndexChanged);
+            combatDirector.onEnemyPhaseStarted.AddListener(OnEnemyPhaseStarted);
+            combatDirector.onEnemyPhaseEnded.AddListener(OnEnemyPhaseEnded);
         }
 
         if (outputText) outputText.richText = useRichTextColors;
@@ -53,18 +52,18 @@ public class CombatStateHud : MonoBehaviour
 
     void OnDisable()
     {
-        if (gameDirector != null)
+        if (combatDirector != null)
         {
-            gameDirector.onStepChanged.RemoveListener(OnStepChanged);
-            gameDirector.onWaitingForTargetChanged.RemoveListener(OnWaitingForTargetChanged);
-            gameDirector.onRoundStarted.RemoveListener(OnRoundStarted);
-            gameDirector.onRoundResolved.RemoveListener(OnRoundResolved);
-            gameDirector.onPlayerDefLocked.RemoveListener(OnPlayerDefLocked);
-            gameDirector.onPlayerAtkLocked.RemoveListener(OnPlayerAtkLocked);
-            gameDirector.onTargetChanged.RemoveListener(OnTargetChanged);
-            gameDirector.onEnemyTurnIndexChanged.RemoveListener(OnEnemyTurnIndexChanged);
-            gameDirector.onEnemyPhaseStarted.RemoveListener(OnEnemyPhaseStarted);
-            gameDirector.onEnemyPhaseEnded.RemoveListener(OnEnemyPhaseEnded);
+            combatDirector.onStepChanged.RemoveListener(OnStepChanged);
+            combatDirector.onWaitingForTargetChanged.RemoveListener(OnWaitingForTargetChanged);
+            combatDirector.onRoundStarted.RemoveListener(OnRoundStarted);
+            combatDirector.onRoundResolved.RemoveListener(OnRoundResolved);
+            combatDirector.onPlayerDefLocked.RemoveListener(OnPlayerDefLocked);
+            combatDirector.onPlayerAtkLocked.RemoveListener(OnPlayerAtkLocked);
+            combatDirector.onTargetChanged.RemoveListener(OnTargetChanged);
+            combatDirector.onEnemyTurnIndexChanged.RemoveListener(OnEnemyTurnIndexChanged);
+            combatDirector.onEnemyPhaseStarted.RemoveListener(OnEnemyPhaseStarted);
+            combatDirector.onEnemyPhaseEnded.RemoveListener(OnEnemyPhaseEnded);
         }
     }
 

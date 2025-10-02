@@ -11,7 +11,9 @@ public class GameSessionDirector : MonoBehaviour
     [Header("Scene Names")]
     [SerializeField] string mapScene    = "MapScene";
     [SerializeField] string combatScene = "CombatScene";
+    [SerializeField] string treasureScene = "TreasureScene";  // ← yeni sahne adı
 
+    [SerializeField] int baseTreasureCoins = 80;              // treasure baz ödül
     [Header("Refs")]
     [SerializeField] RunContext run;
     [Tooltip("Opsiyonel. Atanmazsa otomatik bulunur.")]
@@ -31,6 +33,37 @@ public class GameSessionDirector : MonoBehaviour
                 wallet = FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
             return wallet;
         }   
+    }
+    public void StartTreasure(Map.MapNode node)
+    {
+        run.pendingEncounter = new RunContext.EncounterData {
+            mapNode = node,
+            nodeType = node.Node.nodeType,
+            blueprintName = node.Blueprint ? node.Blueprint.name : null,
+            seed = Random.Range(int.MinValue, int.MaxValue),
+        };
+        LoadTreasure();
+    }
+
+
+    async void LoadTreasure()
+    {
+        var op = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(treasureScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
+        while (!op.isDone) await System.Threading.Tasks.Task.Yield();
+    }
+
+    /// <summary>Treasure sahnesi Claim edildiğinde buraya gelinir.</summary>
+    public void ReportTreasureFinished(int coinsGranted)
+    {
+        // cüzdana yaz
+        var w = Wallet;
+        if (coinsGranted > 0 && w != null) w.AddCoins(coinsGranted);
+
+        // path zaten selection anında eklenmişse dokunma; yoksa güvence:
+        AdvanceMapProgressAfterWin();
+
+        // map'e dön
+        ReturnToMap();
     }
 
     void Awake()
@@ -117,20 +150,7 @@ public class GameSessionDirector : MonoBehaviour
         ReturnToMap();
     }
 
-    async void ReturnToMap()
-    {
-        var op = SceneManager.LoadSceneAsync(mapScene, LoadSceneMode.Single);
-        while (!op.isDone) await Task.Yield();
-
-        // Sahne yüklendi → referansları tazele
-        ResolveSceneRefs();
-
-        if (_mapManager != null && _mapManager.view != null)
-            _mapManager.view.ShowMap(_mapManager.CurrentMap);
-
-        run.lastCombatResult = null;
-        run.pendingEncounter = null;
-    }
+    public void ReturnToMap() => OpenMapFromReward();
     bool _returningToMap;
 
     public void OpenMapFromReward()

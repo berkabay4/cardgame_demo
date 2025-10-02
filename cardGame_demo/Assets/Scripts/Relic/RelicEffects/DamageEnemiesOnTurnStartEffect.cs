@@ -10,17 +10,17 @@ public class DamageEnemiesOnTurnStartEffect : IRelicEffect
 
     // === lifecycle ===
     public void OnAcquire(RelicRuntime r, RelicContext c)
-        => c?.director?.Log($"[{r.def.displayName}] Her oyuncu turu başında düşmanlara {damagePerStack} hasar (x{Mathf.Max(1,r.stacks)}).");
+        => c?.combatDirector?.Log($"[{r.def.displayName}] Her oyuncu turu başında düşmanlara {damagePerStack} hasar (x{Mathf.Max(1,r.stacks)}).");
 
     public void OnLose(RelicRuntime r, RelicContext c)
-        => c?.director?.Log($"[{r?.def?.displayName}] Tur başı hasar etkisi kaldırıldı.");
+        => c?.combatDirector?.Log($"[{r?.def?.displayName}] Tur başı hasar etkisi kaldırıldı.");
 
     // === hooks ===
     public void OnTurnStart(RelicRuntime r, RelicContext c)
     {
         // GameDirector.StartNewTurn() → RelicManager.OnTurnStart() çağırıyor
         // yani burası HER oyuncu turu başında tetikleniyor.
-        if (c?.director == null) return;
+        if (c?.combatDirector == null) return;
 
         int dmg = damagePerStack * Mathf.Max(1, r.stacks);
         if (dmg <= 0) return;
@@ -37,7 +37,7 @@ public class DamageEnemiesOnTurnStartEffect : IRelicEffect
             if (hm != null) hm.TakeDamage(dmg);
             else            sc.TakeDamage(dmg);
 
-            if (logEachHit) c.director.Log($"[{r.def.displayName}] {sc.name} -{dmg} (turn start).");
+            if (logEachHit) c.combatDirector.Log($"[{r.def.displayName}] {sc.name} -{dmg} (turn start).");
         }
     }
 

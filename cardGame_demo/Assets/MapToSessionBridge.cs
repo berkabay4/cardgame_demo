@@ -21,18 +21,19 @@ public class MapToSessionBridge : MonoBehaviour
     void HandleNodeEntered(Map.MapNode node)
     {
         if (!node) return;
+
         switch (node.Node.nodeType)
         {
             case Map.NodeType.MinorEnemy:
                 GameSessionDirector.Instance.StartMinorEncounter(node);
                 break;
 
-            // Diğer tipler:
-            // case Map.NodeType.RestSite:  OpenRest(node);  break;
-            // case Map.NodeType.Store:     OpenShop(node);  break;
+            case Map.NodeType.Treasure:
+                GameSessionDirector.Instance.StartTreasure(node); // ← yeni metod
+                break;
+
             default:
-                Debug.Log($"[Bridge] Non-combat node entered: {node.Node.nodeType}");
-                // GUI tabanlı akışsa bittiğinde tracker.Unlock() çağır.
+                Debug.Log($"[Bridge] Non-wired node: {node.Node.nodeType}");
                 break;
         }
     }

@@ -40,7 +40,7 @@ public class RelicRuntime
 public class RelicContext
 {
     // Zorunlu bağlam
-    public GameDirector director;
+    public CombatDirector combatDirector;
     public SimpleCombatant player;
     public SimpleCombatant enemy;   // hedef düşman (isteğe bağlı)
 
@@ -66,9 +66,9 @@ public class RelicContext
     public Actor     thresholdForActor;   // Kimin eşiğini değiştiriyoruz?
     public PhaseKind thresholdForPhase;   // Attack/Defense hangisi?
 
-    public RelicContext(GameDirector dir, SimpleCombatant p, SimpleCombatant e)
+    public RelicContext(CombatDirector dir, SimpleCombatant p, SimpleCombatant e)
     {
-        director = dir;
+        combatDirector = dir;
         player = p;
         enemy = e;
     }

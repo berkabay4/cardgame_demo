@@ -37,12 +37,12 @@ public class RelicStatsSync : MonoBehaviour
         new Binding{ name="Player MAX HP", stat=StatId.MaxHealth,       actor=Actor.Player, phase=PhaseKind.Attack },
     };
 
-    GameDirector director;
+    CombatDirector combatDirector;
     RelicManager relics;
 
     void ResolveRefs()
     {
-        if (!director) director = GameDirector.Instance ?? FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector) combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         if (!relics)   relics   = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
     }
 
@@ -67,13 +67,13 @@ public class RelicStatsSync : MonoBehaviour
         for (int i = 0; i < delayFrames; i++) yield return null;
         ResolveRefs();
 
-        if (director?.Ctx == null || relics == null) yield break;
+        if (combatDirector?.Ctx == null || relics == null) yield break;
 
         foreach (var b in bindings)
         {
-            float baseVal = GetBase(director, b);
+            float baseVal = GetBase(combatDirector, b);
             float finalVal = relics.ApplyStatModifiers(b.stat, baseVal, b.actor, b.phase);
-            ApplyFinal(director, b, finalVal);
+            ApplyFinal(combatDirector, b, finalVal);
         }
     }
     [SerializeField] bool reapplyOnTurnStart = false;
@@ -81,9 +81,9 @@ public class RelicStatsSync : MonoBehaviour
     void OnEnable()
     {
         if (reapplyOnTurnStart)
-            GameDirector.ContextReady += () =>
+            CombatDirector.ContextReady += () =>
             {
-                var gd = GameDirector.Instance;
+                var gd = CombatDirector.Instance;
                 // GameDirector'a küçük bir event ekleyebilir ya da BeginPhase/StartNewTurn içinde çağrılan bir UnityEvent’e abone olabilirsin.
             };
     }
@@ -91,7 +91,7 @@ public class RelicStatsSync : MonoBehaviour
     {
         StartCoroutine(ApplyRoutine());
     }
-    float GetBase(GameDirector gd, Binding b)
+    float GetBase(CombatDirector gd, Binding b)
     {
         if (b.source == BaseSource.Manual) return b.baseOverride;
 
@@ -123,7 +123,7 @@ public class RelicStatsSync : MonoBehaviour
     }
 
 
-    void ApplyFinal(GameDirector gd, Binding b, float v)
+    void ApplyFinal(CombatDirector gd, Binding b, float v)
     {
         if (b.applyTarget == ApplyTarget.Manual)
         {

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using DG.Tweening;
 using UnityEngine;
 using UnityEngine.Events;
@@ -10,27 +9,70 @@ namespace Map
     public class MapPlayerTracker : MonoBehaviour
     {
         [Header("Flow")]
-        public bool lockAfterSelecting = false;
+        [Tooltip("Bir düğüm seçildikten sonra yeni seçimleri kilitle")]
+        [SerializeField] private bool lockAfterSelecting = false;
+
+        [Tooltip("Seçimden sonra 'giriş' olayı yayınlanmadan önceki gecikme (saniye)")]
         [Min(0f)] public float enterNodeDelay = 1f;
 
         [Header("Refs")]
-        public MapManager mapManager;
-        public MapView view;
+        [SerializeField] public MapManager mapManager;
+        [SerializeField] public MapView view;
 
-        public static MapPlayerTracker Instance;
+        public static MapPlayerTracker Instance { get; private set; }
 
         /// <summary>Seçim ve giriş olayları (köprü buraya bağlanır)</summary>
         [Header("Events")]
-        public UnityEvent<MapNode> onNodeSelected = new(); // path’e eklendi, swirl başladı
-        public UnityEvent<MapNode> onNodeEntered  = new(); // gecikme bitti, sahne/GUI açılabilir
+        [SerializeField] public UnityEvent<MapNode> onNodeSelected = new(); // path’e eklendi, swirl başladı
+        [SerializeField] public UnityEvent<MapNode> onNodeEntered  = new(); // gecikme bitti, sahne/GUI açılabilir
 
         public bool Locked { get; private set; }
 
-        void Awake() => Instance = this;
+        private Sequence _enterSeq;
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+            Instance = this;
+            ResolveRefs();
+        }
+
+        private void OnValidate()
+        {
+            // Editör içinde eksik referansları rahatça toparlar
+            if (!Application.isPlaying) ResolveRefs();
+        }
+
+        private void OnDisable()
+        {
+            KillSequence();
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+            KillSequence();
+        }
+
+        private void ResolveRefs()
+        {
+            if (!mapManager) mapManager = FindFirstObjectByType<MapManager>(FindObjectsInactive.Include);
+            if (!view)       view       = mapManager ? mapManager.view : FindFirstObjectByType<MapView>(FindObjectsInactive.Include);
+        }
+
+        private void KillSequence()
+        {
+            if (_enterSeq != null && _enterSeq.IsActive())
+            {
+                _enterSeq.Kill(false);
+                _enterSeq = null;
+            }
+        }
 
         public void SelectNode(MapNode mapNode)
         {
-            if (Locked || mapNode == null) return;
+            if (Locked || mapNode == null || mapManager == null || mapManager.CurrentMap == null)
+                return;
 
             // Erişilebilirlik kontrolü
             if (mapManager.CurrentMap.path.Count == 0)
@@ -60,7 +102,7 @@ namespace Map
             }
         }
 
-        void SendPlayerToNode(MapNode mapNode)
+        private void SendPlayerToNode(MapNode mapNode)
         {
             if (mapNode == null) return;
 
@@ -70,30 +112,44 @@ namespace Map
             mapManager.SaveMap();
 
             // Görsel güncellemeler
-            view.SetAttainableNodes();
-            view.SetLineColors();
+            if (view != null)
+            {
+                view.SetAttainableNodes();
+                view.SetLineColors();
+            }
             mapNode.ShowSwirlAnimation();
 
             // Olay: seçildi (köprü isterse burada UI feedback verebilir)
             onNodeSelected?.Invoke(mapNode);
 
-            // Giriş gecikmesi sonra “entered” olayını yayınla
-            DOTween.Sequence()
-                   .AppendInterval(enterNodeDelay)
-                   .OnComplete(() => EnterNode(mapNode));
+            // Varsa önceki sequence’i iptal et
+            KillSequence();
+
+            // Giriş gecikmesi: 0 ise anında tetikle
+            if (enterNodeDelay <= 0f)
+            {
+                EnterNode(mapNode);
+            }
+            else
+            {
+                _enterSeq = DOTween.Sequence()
+                                   .AppendInterval(enterNodeDelay)
+                                   .OnComplete(() => EnterNode(mapNode));
+            }
         }
 
-        void EnterNode(MapNode mapNode)
+        private void EnterNode(MapNode mapNode)
         {
             // Olay: artık sahne/GUI açabilirsiniz (combat/rest/shop vs.)
             onNodeEntered?.Invoke(mapNode);
-            // Not: Lock’ı köprü/sahne geçişi başlatıyorsa açık kalsın.
-            // GUI üzerinde kalan akışlarda köprü işini bitirdiğinde Unlock() çağırabilir.
+            // Not: Sahne geçişi yapan köprü Lock’ı yönetebilir;
+            // GUI içinde kalıyorsan işin bittiğinde Unlock() çağır.
         }
 
-        public void Unlock() => Locked = false; // GUI akışları bitince çağır
+        /// <summary>GUI akışları bittiğinde harita üstünde tekrar seçim açmak için.</summary>
+        public void Unlock() => Locked = false;
 
-        void PlayWarningThatNodeCannotBeAccessed()
+        private void PlayWarningThatNodeCannotBeAccessed()
         {
             Debug.Log("[MapPlayerTracker] Selected node cannot be accessed.");
         }

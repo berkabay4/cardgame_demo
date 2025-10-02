@@ -17,12 +17,12 @@ public class RelicManager : MonoBehaviour
     public void RaiseRelicsChanged()
     {
         OnRelicsChanged?.Invoke();
-        if (director?.Events != null)
-            director.Events.OnRelicsChanged?.Invoke();
+        if (combatDirector?.Events != null)
+            combatDirector.Events.OnRelicsChanged?.Invoke();
     }
 
     // ==== Refs / Data ====
-    [SerializeField] private GameDirector director;
+    [SerializeField] private CombatDirector combatDirector;
     [SerializeField] private List<RelicRuntime> relics = new();
 
     [Header("Modifier Order (reserved)")]
@@ -46,8 +46,8 @@ public class RelicManager : MonoBehaviour
 
     private void ResolveDirectorIfNull()
     {
-        if (!director)
-            director = GameDirector.Instance ?? FindFirstObjectByType<GameDirector>(FindObjectsInactive.Include);
+        if (!combatDirector)
+            combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
     }
 
     // ==== Queries / Accessors ====
@@ -68,7 +68,7 @@ public class RelicManager : MonoBehaviour
     // ==== Mutations ====
     public void Acquire(RelicDefinition def, int stacks = 1)
     {
-        if (!def) { director?.Log("[Relic] Acquire: null definition."); return; }
+        if (!def) { combatDirector?.Log("[Relic] Acquire: null definition."); return; }
 
         var existing = Get(def.relicId);
         if (existing != null && existing.def != def)
@@ -86,13 +86,13 @@ public class RelicManager : MonoBehaviour
             switch (def.stackRule)
             {
                 case RelicStackRule.Unique:
-                    director?.Log($"[{def.displayName}] zaten var (Unique).");
+                    combatDirector?.Log($"[{def.displayName}] zaten var (Unique).");
                     RaiseRelicsChanged();
                     return;
 
                 case RelicStackRule.Stackable:
                     existing.stacks = Mathf.Clamp(existing.stacks + stacks, 1, def.maxStacks);
-                    director?.Log($"[{def.displayName}] stack oldu: {existing.stacks}.");
+                    combatDirector?.Log($"[{def.displayName}] stack oldu: {existing.stacks}.");
                     break;
 
                 case RelicStackRule.ReplaceLower:
@@ -120,7 +120,7 @@ public class RelicManager : MonoBehaviour
             if (def.effects != null)
                 foreach (var e in def.effects) e?.OnAcquire(rt, ctx);
 
-            director?.Log($"+ Relic: {def.displayName}");
+            combatDirector?.Log($"+ Relic: {def.displayName}");
         }
 
         RaiseRelicsChanged();
@@ -184,10 +184,10 @@ public class RelicManager : MonoBehaviour
     {
         ResolveDirectorIfNull();
 
-        var player = director ? director.Player : null;
-        var ctx = new RelicContext(director, player, targetEnemy);
+        var player = combatDirector ? combatDirector.Player : null;
+        var ctx = new RelicContext(combatDirector, player, targetEnemy);
 
-        var st = director ? director.State : null;
+        var st = combatDirector ? combatDirector.State : null;
         if (st != null)
         {
             ctx.step = st.Step;

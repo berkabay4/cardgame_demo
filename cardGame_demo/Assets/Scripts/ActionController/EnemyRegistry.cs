@@ -4,14 +4,14 @@ using System.Linq;
 
 public class EnemyRegistry
 {
-    readonly GameDirector _host;
+    readonly CombatDirector _host;
     readonly SimpleCombatant _player;
     readonly UnityEngine.Events.UnityEvent<string> _log;
 
     public List<SimpleCombatant> All { get; private set; } = new();
     public List<SimpleCombatant> AliveEnemies => All.Where(e => e && e.CurrentHP > 0).ToList();
 
-    public EnemyRegistry(GameDirector host, SimpleCombatant player, List<SimpleCombatant> initial,
+    public EnemyRegistry(CombatDirector host, SimpleCombatant player, List<SimpleCombatant> initial,
                          UnityEngine.Events.UnityEvent<string> log)
     {
         _host = host; _player = player; _log = log;

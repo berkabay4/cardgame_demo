@@ -35,14 +35,14 @@ public class PlayerPhaseController
         if (acc.IsBusted)
         {
             _state.PlayerDefTotal = 0;
-            GameDirector.Instance.BeginPhase(TurnStep.PlayerAtk);
+            CombatDirector.Instance.BeginPhase(TurnStep.PlayerAtk);
             yield break;
         }
         if (acc.IsStanding)
         {
             _state.PlayerDefTotal = acc.Total;
             _onDefLocked?.Invoke(_state.PlayerDefTotal);
-            GameDirector.Instance.BeginPhase(TurnStep.PlayerAtk);
+            CombatDirector.Instance.BeginPhase(TurnStep.PlayerAtk);
         }
     }
     public IEnumerator DrawAttack()
@@ -59,8 +59,8 @@ public class PlayerPhaseController
             _ctx.Player.CurrentAttack = 0;
             // (Ekli değilse: _ctx.GetUnit(Actor.Player).CurrentAttack = 0;)
 
-            GameDirector.Instance.BeginPhase(TurnStep.Resolve);
-            GameDirector.Instance.ResolveNow();   // <— TEMİZ çağrı
+            CombatDirector.Instance.BeginPhase(TurnStep.Resolve);
+            CombatDirector.Instance.ResolveNow();   // <— TEMİZ çağrı
             yield break;
         }
 
@@ -73,7 +73,7 @@ public class PlayerPhaseController
             // (Ekli değilse: _ctx.GetUnit(Actor.Player).CurrentAttack = _state.PlayerAtkTotal;)
 
             _onAtkLocked?.Invoke(_state.PlayerAtkTotal);
-            GameDirector.Instance.BeginPhase(TurnStep.SelectTarget);
+            CombatDirector.Instance.BeginPhase(TurnStep.SelectTarget);
         }
     }
     public IEnumerator AcceptDefense(System.Action onNext)
