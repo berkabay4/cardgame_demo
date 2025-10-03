@@ -1,10 +1,11 @@
 using System.Collections.Generic;
+using SingularityGroup.HotReload;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 public class RewardOrchestrator : MonoBehaviour
 {
-    [Header("Refs")]
+    [Header("Refs (auto resolve)")]
     [SerializeField] private CombatDirector combatDirector;
     [SerializeField] private EconomyConfig economy;
     [SerializeField] private RewardPanelController rewardPanel;
@@ -21,10 +22,10 @@ public class RewardOrchestrator : MonoBehaviour
     // ---- lifecycle ----
     void Reset()
     {
-        combatDirector    = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
-        wallet      = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
-        rewardPanel = FindFirstObjectByType<RewardPanelController>(FindObjectsInactive.Include);
-        economy     = FindFirstObjectByType<EconomyConfig>(FindObjectsInactive.Include);
+        combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        wallet         = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
+        rewardPanel    = FindFirstObjectByType<RewardPanelController>(FindObjectsInactive.Include);
+        economy        = FindFirstObjectByType<EconomyConfig>(FindObjectsInactive.Include);
     }
 
     void Awake()
@@ -35,32 +36,43 @@ public class RewardOrchestrator : MonoBehaviour
             combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
         if (wallet == null)
             wallet = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
+        if (rewardPanel == null)
+            rewardPanel = FindFirstObjectByType<RewardPanelController>(FindObjectsInactive.Include);
+        if (economy == null)
+            economy = FindFirstObjectByType<EconomyConfig>(FindObjectsInactive.Include);
     }
 
     void OnEnable()
     {
-        // GameDirector sinyalleri
-        if (combatDirector != null) combatDirector.onGameWin.AddListener(OnGameWin);
+        // CombatDirector singleton’a eriş
+        combatDirector = CombatDirector.Instance ?? combatDirector 
+                         ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        if (combatDirector != null)
+            combatDirector.onGameWin.AddListener(OnGameWin);
 
         // Panel sinyali
-        if (rewardPanel != null) rewardPanel.onRewardAccepted.AddListener(OnRewardAccepted);
+        if (rewardPanel != null)
+            rewardPanel.onRewardAccepted.AddListener(OnRewardAccepted);
 
         // Player’ı çöz ve event’ine abone ol
         TryBindPlayerNow();
+
         // Director hazır sinyali (oyuncu geç doğarsa)
         CombatDirector.ContextReady += OnContextReady;
 
         // Son çare: kısa aralıklarla Player.Instance’ı yokla (spawn sırası bilinmiyorsa)
-        if (Player.Instance == null) InvokeRepeating(nameof(TryBindPlayerNow), 0.2f, 0.2f);
+        if (Player.Instance == null)
+            InvokeRepeating(nameof(TryBindPlayerNow), 0.2f, 0.2f);
     }
 
     void OnDisable()
     {
-        if (combatDirector != null) combatDirector.onGameWin.RemoveListener(OnGameWin);
-        if (rewardPanel != null) rewardPanel.onRewardAccepted.RemoveListener(OnRewardAccepted);
+        if (combatDirector != null)
+            combatDirector.onGameWin.RemoveListener(OnGameWin);
+        if (rewardPanel != null)
+            rewardPanel.onRewardAccepted.RemoveListener(OnRewardAccepted);
 
         CombatDirector.ContextReady -= OnContextReady;
-
         UnsubscribePlayerEvents();
         CancelInvoke(nameof(TryBindPlayerNow));
     }
@@ -73,7 +85,23 @@ public class RewardOrchestrator : MonoBehaviour
     }
 
     // ---- player binding ----
-    void OnContextReady() => TryBindPlayerNow();
+    void OnContextReady()
+    {
+        Debug.Log("[RewardOrchestrator] ContextReady fired, re-binding CombatDirector");
+
+        // her zaman güncel director al
+        combatDirector = CombatDirector.Instance 
+                    ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+
+        if (combatDirector != null) {
+            // eski bağları temizle
+            combatDirector.onGameWin.RemoveListener(OnGameWin);
+            // yeniden bağla
+            combatDirector.onGameWin.AddListener(OnGameWin);
+        }
+
+        TryBindPlayerNow();
+    }
 
     void TryBindPlayerNow()
     {
@@ -105,17 +133,12 @@ public class RewardOrchestrator : MonoBehaviour
     void OnPlayerDataChanged(PlayerData newData)
     {
         playerDataCached = newData;
-        // İstersen burada loglayabilirsin
-        // Debug.Log($"[RewardOrchestrator] PlayerData updated → {newData?.name}");
     }
 
     PlayerData GetPlayerData()
     {
-        // Öncelik: Player singleton’daki canlı data
         if (Player.Instance?.Data != null) return Player.Instance.Data;
-        // Değilse cache
         if (playerDataCached != null) return playerDataCached;
-        // Son çare: sahnede bir Player bul ve al
         playerDataCached = FindFirstObjectByType<Player>(FindObjectsInactive.Include)?.Data;
         return playerDataCached;
     }
@@ -123,6 +146,7 @@ public class RewardOrchestrator : MonoBehaviour
     // ---- main flow ----
     void OnGameWin()
     {
+        Debug.Log("[RewardOrchestrator] OnGameWin");
         if (rewardPanel == null || economy == null)
         {
             Debug.LogWarning("[RewardOrchestrator] RewardPanel/Economy eksik. Ödül paneli açılamadı.");
@@ -135,7 +159,12 @@ public class RewardOrchestrator : MonoBehaviour
             Debug.LogWarning("[RewardOrchestrator] PlayerData bulunamadı (Player.Instance yok?). Panel yine açılıyor fakat range default 21 kullanılabilir.");
         }
 
-        int baseReward = rewardPolicy != null ? rewardPolicy.GetBaseReward(combatDirector) : 100;
+        // combatDirector her zaman singleton üzerinden çözülür
+        combatDirector = CombatDirector.Instance ?? combatDirector;
+        int baseReward = rewardPolicy != null && combatDirector != null 
+            ? rewardPolicy.GetBaseReward(combatDirector) 
+            : 100;
+
         var relics = CollectRewardRelicEffects();
 
         rewardPanel.Open(baseReward, pData, economy, relics);

@@ -43,24 +43,24 @@ namespace Map
                 : scrollRectVertical;
         }
 
-    protected virtual void CreateMapParent()
-    {
-        firstParent = new GameObject("OuterMapParent");
-        firstParent.transform.position = Vector3.zero;
-        firstParent.transform.rotation = Quaternion.identity;
+    // protected virtual void CreateMapParent()
+    // {
+    //     firstParent = new GameObject("OuterMapParent");
+    //     firstParent.transform.position = Vector3.zero;
+    //     firstParent.transform.rotation = Quaternion.identity;
 
-        mapParent = new GameObject("MapParentWithAScroll");
-        mapParent.transform.SetParent(firstParent.transform, worldPositionStays: false);
-        mapParent.transform.localPosition = Vector3.zero;
-        mapParent.transform.localRotation = Quaternion.identity;
+    //     mapParent = new GameObject("MapParentWithAScroll");
+    //     mapParent.transform.SetParent(firstParent.transform, worldPositionStays: false);
+    //     mapParent.transform.localPosition = Vector3.zero;
+    //     mapParent.transform.localRotation = Quaternion.identity;
 
-        var scrollNonUi = mapParent.AddComponent<ScrollNonUI>();
-        scrollNonUi.freezeX = orientation == MapOrientation.BottomToTop || orientation == MapOrientation.TopToBottom;
-        scrollNonUi.freezeY = orientation == MapOrientation.LeftToRight || orientation == MapOrientation.RightToLeft;
+    //     var scrollNonUi = mapParent.AddComponent<ScrollNonUI>();
+    //     scrollNonUi.freezeX = orientation == MapOrientation.BottomToTop || orientation == MapOrientation.TopToBottom;
+    //     scrollNonUi.freezeY = orientation == MapOrientation.LeftToRight || orientation == MapOrientation.RightToLeft;
 
-        var boxCollider = mapParent.AddComponent<BoxCollider>();
-        boxCollider.size = new Vector3(100, 100, 1);
-    }
+    //     var boxCollider = mapParent.AddComponent<BoxCollider>();
+    //     boxCollider.size = new Vector3(100, 100, 1);
+    // }
 
         private void SetMapLength()
         {
@@ -104,23 +104,23 @@ namespace Map
             tr.anchoredPosition = Vector2.zero;
         }
 
-        void CreateMapNode(Node node)
-        {
-            Debug.Log($"[MapViewUI] CreateMapNode type={node.nodeType} row={node.point.y} col={node.point.x}");
-            // nodesParent artık mevcut
-            var go = Instantiate(nodePrefab, nodesParent);
-            var mapNode = go.GetComponent<MapNode>();
+        // void CreateMapNode(Node node)
+        // {
+        //     Debug.Log($"[MapViewUI] CreateMapNode type={node.nodeType} row={node.point.y} col={node.point.x}");
+        //     // nodesParent artık mevcut
+        //     var go = Instantiate(nodePrefab, nodesParent);
+        //     var mapNode = go.GetComponent<MapNode>();
 
-            var blueprint = ResolveBlueprint(node);
-            if (blueprint == null)
-                Debug.LogError($"[MapViewUI] ResolveBlueprint → NULL for type={node.nodeType}");
+        //     var blueprint = ResolveBlueprint(node);
+        //     if (blueprint == null)
+        //         Debug.LogError($"[MapViewUI] ResolveBlueprint → NULL for type={node.nodeType}");
 
-            mapNode.SetUp(node, blueprint, this);
+        //     mapNode.SetUp(node, blueprint, this);
 
-            // UI’de konum: anchoredPosition
-            var rt = (RectTransform)mapNode.transform;
-            rt.anchoredPosition = GetNodePosition(node);
-        }
+        //     // UI’de konum: anchoredPosition
+        //     var rt = (RectTransform)mapNode.transform;
+        //     rt.anchoredPosition = GetNodePosition(node);
+        // }
         [Header("Blueprint Resolver")]
         [SerializeField] private NodeSkinSet skinSet; // sahneden atayın
 

@@ -118,9 +118,30 @@ public class ResolutionController
     {
         var aliveEnemies = _enemies.AliveEnemies;
 
-        if (_ctx.Player.CurrentHP <= 0 && aliveEnemies.Count > 0) { _log?.Invoke("Game Over"); _onGameOver?.Invoke(); return true; }
-        if (aliveEnemies.Count == 0 && _ctx.Player.CurrentHP > 0) { _log?.Invoke("Game Win!"); _onGameWin?.Invoke(); return true; }
-        if (_ctx.Player.CurrentHP <= 0 && aliveEnemies.Count == 0) { _log?.Invoke("Draw! (both defeated)"); return true; }
+        if (_ctx.Player.CurrentHP <= 0 && aliveEnemies.Count > 0)
+        {
+            _log?.Invoke("Game Over");
+            _onGameOver?.Invoke();
+            CombatDirector.Instance.ResetCombatState();   // ✅ fight reset
+            return true;
+        }
+
+        if (aliveEnemies.Count == 0 && _ctx.Player.CurrentHP > 0)
+        {
+            _log?.Invoke("Game Win!");
+            _onGameWin?.Invoke();
+            CombatDirector.Instance.ResetCombatState();   // ✅ fight reset
+            return true;
+        }
+
+        if (_ctx.Player.CurrentHP <= 0 && aliveEnemies.Count == 0)
+        {
+            _log?.Invoke("Draw! (both defeated)");
+            CombatDirector.Instance.ResetCombatState();   // ✅ fight reset
+            return true;
+        }
+
         return false;
     }
+
 }

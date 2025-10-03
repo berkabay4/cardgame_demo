@@ -13,7 +13,6 @@ public class GameSessionDirector : MonoBehaviour
     [SerializeField] string combatScene = "CombatScene";
     [SerializeField] string treasureScene = "TreasureScene";  // ← yeni sahne adı
 
-    [SerializeField] int baseTreasureCoins = 80;              // treasure baz ödül
     [Header("Refs")]
     [SerializeField] RunContext run;
     [Tooltip("Opsiyonel. Atanmazsa otomatik bulunur.")]

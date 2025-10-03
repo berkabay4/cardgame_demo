@@ -437,65 +437,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b2b3b4e0751e7a5459502b5e52c8b938, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  relics: {fileID: 186063708}
+  relics: {fileID: 0}
   content: {fileID: 479676929}
   iconPrefab: {fileID: -23369929237912318, guid: ed831ee642b5f0f41bdbabec06b468e1, type: 3}
   autoAddLayoutGroup: 1
   padding: {x: 6, y: 6}
   spacing: 6
---- !u!1 &186063706
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 186063707}
-  - component: {fileID: 186063708}
-  m_Layer: 0
-  m_Name: RelicManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &186063707
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 186063706}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1385394758}
-  m_Father: {fileID: 660692081}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &186063708
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 186063706}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c8a3ad853b0b0740b5cfe3c3b0b0645, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  dontDestroyOnLoad: 1
-  _combatDirector: {fileID: 0}
-  relics: []
-  priorityOrder:
-  - FlatDamageUp
-  - ConditionalAdds
-  - Multipliers
-  - LastMinuteClamps
 --- !u!1 &223463280
 GameObject:
   m_ObjectHideFlags: 0
@@ -773,7 +720,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &393004888
 Transform:
   m_ObjectHideFlags: 0
@@ -1660,7 +1607,6 @@ MonoBehaviour:
   m_ScreenCoordScaleBias: {x: 0, y: 0, z: 0, w: 0}
   m_RequiresDepthTexture: 0
   m_RequiresColorTexture: 0
-  m_Version: 2
   m_TaaSettings:
     m_Quality: 3
     m_FrameInfluence: 0.1
@@ -1668,6 +1614,7 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+  m_Version: 2
 --- !u!20 &519420031
 Camera:
   m_ObjectHideFlags: 0
@@ -2026,7 +1973,6 @@ Transform:
   - {fileID: 1015773954}
   - {fileID: 1932883325}
   - {fileID: 393004888}
-  - {fileID: 186063707}
   - {fileID: 1936883753}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -2908,7 +2854,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1015773954
 Transform:
   m_ObjectHideFlags: 0
@@ -2939,7 +2885,6 @@ MonoBehaviour:
   mapScene: MapScene
   combatScene: CombatScene
   treasureScene: TreasureScene
-  baseTreasureCoins: 80
   run: {fileID: 11400000, guid: 4a7494b49d843614b90e2abca926d45a, type: 2}
   baseMinorCoins: 50
 --- !u!1 &1022131290
@@ -3584,75 +3529,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 310724132}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1385394757
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1385394758}
-  - component: {fileID: 1385394759}
-  m_Layer: 0
-  m_Name: RelicStatsSync
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1385394758
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1385394757}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 186063707}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1385394759
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1385394757}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ef78666ecd877304bbd3a5e764e47aa1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  applyOnStart: 1
-  delayFrames: 1
-  reapplyOnRelicsChanged: 1
-  bindings:
-  - name: Player ATK TH
-    stat: 0
-    actor: 0
-    phase: 1
-    source: 0
-    baseOverride: 0
-    applyTarget: 0
-    onApplied:
-      m_PersistentCalls:
-        m_Calls: []
-  - name: Player MAX HP
-    stat: 2
-    actor: 0
-    phase: 1
-    source: 0
-    baseOverride: 0
-    applyTarget: 0
-    onApplied:
-      m_PersistentCalls:
-        m_Calls: []
-  reapplyOnTurnStart: 0
 --- !u!1 &1445870577
 GameObject:
   m_ObjectHideFlags: 0
@@ -3976,7 +3852,6 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   approachDistance: 0.35
-  moveRoot: 1
   faceTarget: 0
 --- !u!1 &1524724881
 GameObject:
@@ -4736,7 +4611,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1932883325
 Transform:
   m_ObjectHideFlags: 0
@@ -4847,7 +4722,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1936883753
 Transform:
   m_ObjectHideFlags: 0

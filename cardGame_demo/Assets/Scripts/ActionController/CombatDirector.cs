@@ -214,6 +214,39 @@ void Awake()
             onLog?.Invoke("[Init] PlayerStats not found on player. Using fallback/global threshold.");
         }
     }
+    public void ResetCombatState()
+    {
+        Log("[Director] Resetting combat state...");
+
+        // yeni BattleState ve ActionQueue
+        State = new BattleState();
+        Queue = new ActionQueue();
+
+        // Deckleri yeniden kur
+        if (player)
+            Ctx?.RegisterDeck(player, BuildDeckForUnit(player));
+
+        if (_enemies != null)
+        {
+            foreach (var e in _enemies.All.Where(x => x))
+                Ctx?.RegisterDeck(e, BuildDeckForUnit(e));
+        }
+
+        // Player accumulator reset
+        _player?.ResetAccumulator(PhaseKind.Defense);
+        _player?.ResetAccumulator(PhaseKind.Attack);
+
+        // Target temizle
+        _targeting?.CancelTargetMode();
+
+        // Thresholdları tekrar uygula
+        ApplyInitialPlayerThresholds();
+
+        // Round state reset
+        State.ResetForNewTurn();
+
+        Log("[Director] Combat state reset complete.");
+    }
 
     IDeckService BuildDeckForUnit(SimpleCombatant unit)
     {

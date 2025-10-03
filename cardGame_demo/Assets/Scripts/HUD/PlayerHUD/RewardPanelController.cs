@@ -17,11 +17,11 @@ public class RewardPanelController : MonoBehaviour
     [SerializeField] private Button drawButton;
     [SerializeField] private Button acceptButton;
     [SerializeField] private Button cancelButton;
-    [SerializeField] private Button mapButton;                    // ← YENİ: Accept sonrası görünecek
+    [SerializeField] private Button mapButton;                    // ← Accept sonrası görünecek
 
     [Header("Settings")]
     [SerializeField] private EconomyConfig economy;               // bustPenalty vs.
-    [SerializeField] private bool hideOnAccept = false;           // ← Accept’te panel kapanmasın
+    [SerializeField] private bool hideOnAccept = false;           // Accept’te panel kapanmasın
 
     [Header("54-Card Deck Value Mapping")]
     [Tooltip("As değeri (1 veya 11 tipik).")]
@@ -33,10 +33,10 @@ public class RewardPanelController : MonoBehaviour
 
     [Header("Events")]
     public UnityEvent<int> onRewardAccepted;  // final coin miktarı (Accept anında)
-    public UnityEvent onMapRequested;         // ← YENİ: Map butonuna basılınca fırlar
+    public UnityEvent onMapRequested;         // Map butonuna basılınca fırlar
 
     [Header("External")]
-    [SerializeField] private PlayerWallet wallet; // ← YENİ: ödülü burada cüzdana basacağız
+    [SerializeField] private PlayerWallet wallet; // ← otomatik singleton’dan bulunacak
 
     // --- Runtime ---
     RewardContext ctx;
@@ -48,6 +48,7 @@ public class RewardPanelController : MonoBehaviour
 
     bool rewardAccepted;   // Accept’e basıldı mı?
     int acceptedAmount;    // kabul edilen ödül
+    bool mapRequested;     // map butonu basıldı mı?
 
     void Reset()
     {
@@ -60,23 +61,15 @@ public class RewardPanelController : MonoBehaviour
         if (!drawButton)      drawButton      = panelRoot.GetComponentInChildren<Button>(true);
         if (!acceptButton)    acceptButton    = panelRoot.GetComponentInChildren<Button>(true);
         if (!cancelButton)    cancelButton    = panelRoot.GetComponentInChildren<Button>(true);
-
-        if (!mapButton)       mapButton       = panelRoot.GetComponentInChildren<Button>(true); // varsa yakalar
+        if (!mapButton)       mapButton       = panelRoot.GetComponentInChildren<Button>(true);
     }
 
     void Awake()
     {
         if (!panelRoot) panelRoot = gameObject;
 
-        // Butonlar eksikse otomatik bulmayı dene
-        if (!mapButton)
-        {
-            mapButton = panelRoot.GetComponentInChildren<Button>(true);
-            if (mapButton)
-                Debug.Log($"[RewardUI] mapButton auto-wired: {mapButton.name}");
-            else
-                Debug.LogWarning("[RewardUI] mapButton is NULL. Assign it in Inspector!");
-        }
+        // Wallet singleton bağla
+        if (!wallet) wallet = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
 
         if (drawButton)   drawButton.onClick.AddListener(OnDraw);
         if (acceptButton) acceptButton.onClick.AddListener(OnAccept);
@@ -108,10 +101,10 @@ public class RewardPanelController : MonoBehaviour
 
         rewardAccepted = false;
         acceptedAmount = 0;
+        mapRequested   = false;
 
         BuildAndShuffle54Deck();
 
-        // Başlangıç UI durumu
         if (drawButton)   { drawButton.gameObject.SetActive(true);   drawButton.interactable = true; }
         if (acceptButton) { acceptButton.gameObject.SetActive(true); acceptButton.interactable = true; }
         if (mapButton)    mapButton.gameObject.SetActive(false);
@@ -171,15 +164,13 @@ public class RewardPanelController : MonoBehaviour
 
         bool isBust = ctx.isBust;
 
-        // Accept öncesi durum
         if (!rewardAccepted)
         {
             if (drawButton)   drawButton.interactable   = !isBust;
-            if (acceptButton) acceptButton.interactable = true; // bust olsa da kabul edebilir (ceza uygulanır)
+            if (acceptButton) acceptButton.interactable = true; 
         }
         else
         {
-            // Accept sonrası: metinleri kabul edilen miktara sabitle
             if (finalRewardText) finalRewardText.text = $"Final Reward: {acceptedAmount}";
         }
     }
@@ -187,16 +178,14 @@ public class RewardPanelController : MonoBehaviour
     // === Actions ===
     void OnDraw()
     {
-        if (rewardAccepted) return; // accept sonrası çekim yok
+        if (rewardAccepted) return;
 
         int v = DrawFromDeck();
 
         if (v == jokerValue)
         {
-            // JOKER: şu anki toplamı doğrudan max range'e kapat
             int sum = RewardService.Sum(ctx.drawnValues);
             int capDelta = Mathf.Max(0, ctx.maxRange - sum);
-
             if (capDelta > 0)
             {
                 ctx.drawnValues.Add(capDelta);
@@ -204,13 +193,11 @@ public class RewardPanelController : MonoBehaviour
             }
             else
             {
-                // zaten cap'teyiz veya üstünde (teknik olarak üstü olmamalı)
                 Debug.Log("[Reward] Joker çekildi ama toplam zaten max. Değişiklik yok.");
             }
         }
         else
         {
-            // normal kart
             ctx.drawnValues.Add(v);
         }
 
@@ -219,17 +206,18 @@ public class RewardPanelController : MonoBehaviour
 
     void OnAccept()
     {
-        if (rewardAccepted) return; // çifte tıklamaya karşı
+        if (rewardAccepted) return;
 
         int final = RewardService.ComputeFinal(ctx, rewardRelics);
 
         // 1) Cüzdana ekle
+        if (!wallet) wallet = PlayerWallet.Instance ?? FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
         if (wallet != null) wallet.AddCoins(final);
 
-        // 2) Event yayınla (başka sistemler dinlemek isteyebilir)
+        // 2) Event yayınla
         onRewardAccepted?.Invoke(final);
 
-        // 3) UI durumunu değiştir
+        // 3) UI güncelle
         acceptedAmount = final;
         rewardAccepted = true;
 
@@ -237,17 +225,13 @@ public class RewardPanelController : MonoBehaviour
         if (acceptButton) acceptButton.gameObject.SetActive(false);
         if (mapButton)    mapButton.gameObject.SetActive(true);
 
-        // Panel açık kalıyor (hideOnAccept=false)
         UpdateUI();
     }
 
     void OnCancel()
     {
-        // İstersen iptalde paneli kapatıp hiçbir şey yapma
         Close();
     }
-
-    bool mapRequested;   // sınıf alanı
 
     void OnMap()
     {
@@ -256,25 +240,14 @@ public class RewardPanelController : MonoBehaviour
 
         Debug.Log("[RewardUI] Map button clicked.");
 
-        // 1) Inspector event'ini tetikle (varsa)
-        try
-        {
-            int listeners = onMapRequested != null ? onMapRequested.GetPersistentEventCount() : 0;
-            Debug.Log($"[RewardUI] onMapRequested invoke (persistent listeners: {listeners}).");
-            onMapRequested?.Invoke();
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[RewardUI] onMapRequested threw: {ex}");
-        }
+        onMapRequested?.Invoke();
 
-        // 2) Fallback: GameSessionDirector'ı bul ve çağır
         var director = GameSessionDirector.Instance
                     ?? FindFirstObjectByType<GameSessionDirector>(FindObjectsInactive.Include);
 
         if (director != null)
         {
-            Debug.Log("[RewardUI] Fallback → GameSessionDirector.OpenMapFromReward()");
+            Debug.Log("[RewardUI] → GameSessionDirector.OpenMapFromReward()");
             director.OpenMapFromReward();
         }
         else
@@ -282,7 +255,6 @@ public class RewardPanelController : MonoBehaviour
             Debug.LogError("[RewardUI] GameSessionDirector not found! Cannot open map.");
         }
 
-        // 3) Paneli kapat
         Close();
     }
 

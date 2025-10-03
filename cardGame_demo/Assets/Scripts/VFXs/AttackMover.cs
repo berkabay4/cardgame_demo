@@ -12,8 +12,8 @@ public class AttackMover : MonoBehaviour
     [Tooltip("Hedefe yaklaşırken bırakılacak mesafe (hedefe doğru).")]
     [SerializeField, Min(0f)] float approachDistance = 0.35f;
 
-    [Tooltip("Saldırganın kök (root) transform’u mu taşınsın? (Prefablarda genelde daha doğru olur)")]
-    [SerializeField] bool moveRoot = true;
+    // [Tooltip("Saldırganın kök (root) transform’u mu taşınsın? (Prefablarda genelde daha doğru olur)")]
+    // [SerializeField] bool moveRoot = true;
 
     [Tooltip("Saldırgan hedefe doğru yüzsün mü? (2D’de scale.x flip).")]
     [SerializeField] bool faceTarget = false;

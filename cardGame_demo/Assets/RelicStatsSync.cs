@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
 public class RelicStatsSync : MonoBehaviour
@@ -19,7 +20,7 @@ public class RelicStatsSync : MonoBehaviour
 
         [Header("Apply Target")]
         public ApplyTarget applyTarget = ApplyTarget.Auto;
-        public UnityEvent<float> onApplied; // fallback: inspector’dan bağlayabileceğin event
+        public UnityEvent<float> onApplied; // inspector fallback
     }
 
     public enum BaseSource { Auto, Manual }
@@ -29,6 +30,7 @@ public class RelicStatsSync : MonoBehaviour
     [SerializeField] bool applyOnStart = true;
     [SerializeField, Min(0)] int delayFrames = 1;
     [SerializeField] bool reapplyOnRelicsChanged = true;
+    [SerializeField] bool reapplyOnTurnStart = false;
 
     [Header("Bindings")]
     [SerializeField] Binding[] bindings = new Binding[]
@@ -40,24 +42,41 @@ public class RelicStatsSync : MonoBehaviour
     CombatDirector combatDirector;
     RelicManager relics;
 
-    void ResolveRefs()
-    {
-        if (!combatDirector) combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
-        if (!relics)   relics   = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
-    }
-
-    void Start()
+    void Awake()
     {
         ResolveRefs();
-        if (applyOnStart) StartCoroutine(ApplyRoutine());
-        if (reapplyOnRelicsChanged && relics != null)
-            relics.OnRelicsChanged += HandleRelicsChanged;
+        // her sahne yüklendiğinde combat varsa tekrar uygula
+        SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
     void OnDestroy()
     {
         if (reapplyOnRelicsChanged && relics != null)
             relics.OnRelicsChanged -= HandleRelicsChanged;
+
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    void Start()
+    {
+        if (applyOnStart) StartCoroutine(ApplyRoutine());
+        if (reapplyOnRelicsChanged && relics != null)
+            relics.OnRelicsChanged += HandleRelicsChanged;
+
+        if (reapplyOnTurnStart)
+            CombatDirector.ContextReady += OnCombatContextReady;
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // CombatScene açıldığında tekrar relic değerlerini uygula
+        StartCoroutine(ApplyRoutine());
+    }
+
+    void OnCombatContextReady()
+    {
+        // CombatDirector hazır olduğunda re-apply
+        StartCoroutine(ApplyRoutine());
     }
 
     void HandleRelicsChanged() => StartCoroutine(ApplyRoutine());
@@ -76,21 +95,18 @@ public class RelicStatsSync : MonoBehaviour
             ApplyFinal(combatDirector, b, finalVal);
         }
     }
-    [SerializeField] bool reapplyOnTurnStart = false;
 
-    void OnEnable()
+    void ResolveRefs()
     {
-        if (reapplyOnTurnStart)
-            CombatDirector.ContextReady += () =>
-            {
-                var gd = CombatDirector.Instance;
-                // GameDirector'a küçük bir event ekleyebilir ya da BeginPhase/StartNewTurn içinde çağrılan bir UnityEvent’e abone olabilirsin.
-            };
+        if (!combatDirector) combatDirector = CombatDirector.Instance ?? FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
+        if (!relics) relics = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
     }
+
     public void ApplyNow()
     {
         StartCoroutine(ApplyRoutine());
     }
+
     float GetBase(CombatDirector gd, Binding b)
     {
         if (b.source == BaseSource.Manual) return b.baseOverride;
@@ -103,16 +119,16 @@ public class RelicStatsSync : MonoBehaviour
         {
             case StatId.AttackThreshold:
                 if (stat) return Mathf.Max(1, stat.MaxAttackRange);
-                return Mathf.Max(1, gd.Ctx.GetThreshold(b.actor, PhaseKind.Attack)); // fallback
+                return Mathf.Max(1, gd.Ctx.GetThreshold(b.actor, PhaseKind.Attack));
 
             case StatId.DefenseThreshold:
                 if (stat) return Mathf.Max(1, stat.MaxDefenseRange);
-                return Mathf.Max(1, gd.Ctx.GetThreshold(b.actor, PhaseKind.Defense)); // fallback
+                return Mathf.Max(1, gd.Ctx.GetThreshold(b.actor, PhaseKind.Defense));
 
             case StatId.MaxHealth:
                 if (stat) return Mathf.Max(1, stat.MaxHealth);
                 if (hm)   return Mathf.Max(1, hm.MaxHP);
-                return 80f; // güvenli varsayılan
+                return 80f;
 
             case StatId.DamageMultiplier:
                 return 1f;
@@ -121,7 +137,6 @@ public class RelicStatsSync : MonoBehaviour
                 return 0f;
         }
     }
-
 
     void ApplyFinal(CombatDirector gd, Binding b, float v)
     {
@@ -135,23 +150,18 @@ public class RelicStatsSync : MonoBehaviour
         {
             case StatId.AttackThreshold:
                 gd.Ctx.SetPhaseThreshold(b.actor, PhaseKind.Attack, Mathf.RoundToInt(v));
-                // UI tazele (Context üzerinden)
                 if (b.actor == Actor.Player)
-                    gd.Ctx.OnProgress?.Invoke(
-                        Actor.Player, PhaseKind.Attack,
+                    gd.Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Attack,
                         gd.State?.PlayerAtkTotal ?? 0,
-                        Mathf.RoundToInt(v)
-                    );
+                        Mathf.RoundToInt(v));
                 break;
 
             case StatId.DefenseThreshold:
                 gd.Ctx.SetPhaseThreshold(b.actor, PhaseKind.Defense, Mathf.RoundToInt(v));
                 if (b.actor == Actor.Player)
-                    gd.Ctx.OnProgress?.Invoke(
-                        Actor.Player, PhaseKind.Defense,
+                    gd.Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Defense,
                         gd.State?.PlayerDefTotal ?? 0,
-                        Mathf.RoundToInt(v)
-                    );
+                        Mathf.RoundToInt(v));
                 break;
 
             case StatId.MaxHealth:
@@ -180,5 +190,4 @@ public class RelicStatsSync : MonoBehaviour
                 break;
         }
     }
-
 }

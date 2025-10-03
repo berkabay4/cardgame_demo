@@ -35,7 +35,7 @@ public class RelicBar : MonoBehaviour
             var hg = content.gameObject.AddComponent<HorizontalLayoutGroup>();
             hg.padding = new RectOffset((int)padding.x, (int)padding.x, (int)padding.y, (int)padding.y);
             hg.spacing = spacing;
-            hg.childAlignment = TextAnchor.MiddleLeft;     // ← soldan sağa
+            hg.childAlignment = TextAnchor.MiddleLeft;     // soldan sağa
             hg.childForceExpandWidth = false;
             hg.childForceExpandHeight = false;
         }
@@ -43,26 +43,42 @@ public class RelicBar : MonoBehaviour
 
     void OnEnable()
     {
-        if (relics != null) relics.OnRelicsChanged += HandleRelicsChanged;
+        if (relics == null)
+            relics = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
+
+        if (relics != null)
+            relics.OnRelicsChanged += HandleRelicsChanged;
+
+        Rebuild();
+    }
+
+    void Start()
+    {
+        // CombatScene yüklenip bar aktif olduğunda da kesin güncelle
         Rebuild();
     }
 
     void OnDisable()
     {
-        if (relics != null) relics.OnRelicsChanged -= HandleRelicsChanged;
+        if (relics != null)
+            relics.OnRelicsChanged -= HandleRelicsChanged;
     }
 
     void HandleRelicsChanged() => Rebuild();
 
     public void Rebuild()
     {
+        if (relics == null)
+            relics = RelicManager.Instance ?? FindFirstObjectByType<RelicManager>(FindObjectsInactive.Include);
+
         if (relics == null || iconPrefab == null || content == null) return;
 
         // kapat
-        for (int i = 0; i < activeCount; i++) pool[i].gameObject.SetActive(false);
+        for (int i = 0; i < activeCount; i++)
+            pool[i].gameObject.SetActive(false);
         activeCount = 0;
 
-        // sırayı koru (Acquire sırası). İstersen rarity’ye göre OrderBy yapabilirsin.
+        // sırayı koru (Acquire sırası)
         foreach (var rr in relics.All)
         {
             var view = GetView();

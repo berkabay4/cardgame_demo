@@ -28,7 +28,7 @@ MonoBehaviour:
       type: {class: MaxHealthBonusEffect, ns: , asm: Assembly-CSharp}
       data:
         mode: 0
-        flatBonusPerStack: 10
+        flatBonusPerStack: 50
         percentPerStack: 0.1
         applyToPlayer: 1
         applyToEnemies: 0

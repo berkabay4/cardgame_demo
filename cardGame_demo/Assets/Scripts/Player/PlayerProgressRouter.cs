@@ -13,25 +13,23 @@ public class PlayerProgressRouter : MonoBehaviour
     [SerializeField] string format = "{0} / {1}";
     [SerializeField] bool logWhenUpdated = false;
 
-    void Reset()
+    void Awake()
     {
         AutoWire();
     }
 
-    void Awake()
-    {
-        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
-        if (!defText || !atkText) AutoWire();
-    }
-
     void OnEnable()
     {
-        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
-        if (combatDirector)
+        // CombatDirector hazır değilse, ContextReady eventini dinle
+        if (CombatDirector.Instance == null)
         {
-            combatDirector.onProgress.AddListener(OnProgress);
-            combatDirector.onRoundStarted.AddListener(OnRoundStarted);
+            CombatDirector.ContextReady += OnContextReady;
         }
+        else
+        {
+            HookToDirector(CombatDirector.Instance);
+        }
+
         InitToZero();
     }
 
@@ -42,12 +40,26 @@ public class PlayerProgressRouter : MonoBehaviour
             combatDirector.onProgress.RemoveListener(OnProgress);
             combatDirector.onRoundStarted.RemoveListener(OnRoundStarted);
         }
+        CombatDirector.ContextReady -= OnContextReady;
+    }
+
+    void OnContextReady()
+    {
+        if (CombatDirector.Instance != null)
+            HookToDirector(CombatDirector.Instance);
+        InitToZero();
+    }
+
+    void HookToDirector(CombatDirector dir)
+    {
+        combatDirector = dir;
+        combatDirector.onProgress.AddListener(OnProgress);
+        combatDirector.onRoundStarted.AddListener(OnRoundStarted);
     }
 
     void AutoWire()
     {
-        // Bu script Player (SimpleCombatant) objesine konulsun
-        // Altındaki "Canvas" child'ını bul, onun 0 ve 1. çocuklarından TMP al
+        // UI referanslarını bağla
         var canvas = transform.GetComponentInChildren<Canvas>(true)?.transform;
         if (!canvas)
         {
@@ -60,15 +72,10 @@ public class PlayerProgressRouter : MonoBehaviour
             if (!defText) defText = canvas.GetChild(0).GetComponentInChildren<TextMeshProUGUI>(true);
             if (!atkText) atkText = canvas.GetChild(1).GetComponentInChildren<TextMeshProUGUI>(true);
         }
-
-        if (!combatDirector) combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
     }
 
     void InitToZero()
     {
-        if (!combatDirector)
-            combatDirector = FindFirstObjectByType<CombatDirector>(FindObjectsInactive.Include);
-
         var ctx = (combatDirector != null) ? combatDirector.Ctx : null;
 
         int defMax = (ctx != null) ? ctx.GetThreshold(Actor.Player, PhaseKind.Defense) : 21;
@@ -77,6 +84,7 @@ public class PlayerProgressRouter : MonoBehaviour
         if (defText) defText.SetText(format, 0, defMax);
         if (atkText) atkText.SetText(format, 0, atkMax);
     }
+
     void OnRoundStarted()
     {
         InitToZero();

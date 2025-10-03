@@ -27,6 +27,7 @@ MonoBehaviour:
     - rid: 4273640713365487686
       type: {class: AttackRangeBonusEffect, ns: , asm: Assembly-CSharp}
       data:
-        flatBonusPerStack: 5
+        flatBonusPerStack: 50
         applyToPlayer: 1
-        onlyOnPlayerTurn: 1
+        applyToEnemies: 0
+        onlyOnAttackPhase: 1
