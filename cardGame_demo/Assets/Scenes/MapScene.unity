@@ -215,7 +215,6 @@ MonoBehaviour:
   mapScene: MapScene
   combatScene: CombatScene
   treasureScene: TreasureScene
-  baseTreasureCoins: 80
   run: {fileID: 11400000, guid: 4a7494b49d843614b90e2abca926d45a, type: 2}
   baseMinorCoins: 50
 --- !u!1 &655522239
@@ -513,6 +512,7 @@ MonoBehaviour:
   applyOnStart: 1
   delayFrames: 1
   reapplyOnRelicsChanged: 1
+  reapplyOnTurnStart: 1
   bindings:
   - name: Player ATK TH
     stat: 0
@@ -534,7 +534,6 @@ MonoBehaviour:
     onApplied:
       m_PersistentCalls:
         m_Calls: []
-  reapplyOnTurnStart: 0
 --- !u!850595691 &1182666001
 LightingSettings:
   m_ObjectHideFlags: 0
@@ -742,7 +741,6 @@ MonoBehaviour:
   m_ScreenCoordScaleBias: {x: 0, y: 0, z: 0, w: 0}
   m_RequiresDepthTexture: 0
   m_RequiresColorTexture: 0
-  m_Version: 2
   m_TaaSettings:
     m_Quality: 3
     m_FrameInfluence: 0.1
@@ -750,6 +748,7 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+  m_Version: 2
 --- !u!1 &1311161698
 GameObject:
   m_ObjectHideFlags: 0
