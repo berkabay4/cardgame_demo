@@ -215,8 +215,11 @@ MonoBehaviour:
   mapScene: MapScene
   combatScene: CombatScene
   treasureScene: TreasureScene
+  restSiteScene: RestSiteScene
+  mysteryScene: MysteryScene
   run: {fileID: 11400000, guid: 4a7494b49d843614b90e2abca926d45a, type: 2}
   baseMinorCoins: 50
+  mysteryDb: {fileID: 11400000, guid: 6091c14ee08ce6f42bf0cbf469026f4f, type: 2}
 --- !u!1 &655522239
 GameObject:
   m_ObjectHideFlags: 0

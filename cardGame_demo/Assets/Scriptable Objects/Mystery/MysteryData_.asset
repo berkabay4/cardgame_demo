@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 01
   displayName: ShellGame
   description: aaaa
-  sceneName: 
+  sceneName: MysteryScene
   handlerTypeName: Mystery_ShellGame, Assembly-CSharp, Version=0.0.0.0, Culture=neutral,
     PublicKeyToken=null
   weight: 1
