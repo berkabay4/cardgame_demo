@@ -12,8 +12,8 @@ public class GameSessionDirector : MonoBehaviour
     [SerializeField] string mapScene       = "MapScene";
     [SerializeField] string combatScene    = "CombatScene";
     [SerializeField] string treasureScene  = "TreasureScene";
-    [SerializeField] string restSiteScene  = "RestSiteScene";   // === NEW
-    [SerializeField] string mysteryScene   = "MysteryScene";    // === NEW
+    [SerializeField] string restSiteScene  = "RestSiteScene";
+    [SerializeField] string mysteryScene   = "MysteryScene"; // Fallback: CurrentMystery boşsa kullanılır
 
     [Header("Refs")]
     [SerializeField] RunContext run;
@@ -21,6 +21,12 @@ public class GameSessionDirector : MonoBehaviour
     private PlayerWallet wallet;
 
     [SerializeField] int baseMinorCoins = 50;
+
+    // === Mystery (Data-Driven) ===
+    [Header("Mystery (Data-Driven)")]
+    [SerializeField] private ActMysteryDatabase mysteryDb;   // Inspector’dan ver
+    public MysteryData CurrentMystery { get; private set; }
+    public RunContext Run => run;
 
     MapManager _mapManager;
 
@@ -83,7 +89,6 @@ public class GameSessionDirector : MonoBehaviour
     }
 
     /// <summary>RestSite sahnesi tamamlandığında çağır.</summary>
-    /// <param name="coinsGranted">Opsiyonel: Dinlenmede bonus/cebe para çıktıysa.</param>
     public void ReportRestSiteFinished(int coinsGranted = 0)
     {
         var w = Wallet;
@@ -96,39 +101,84 @@ public class GameSessionDirector : MonoBehaviour
     // === MYSTERY ===
     public enum MysteryOutcome
     {
-        None,           // sadece ilerle ve dön
-        Coins,          // coin ver, ilerle ve dön
-        StartCombat,    // gizemden dövüşe dal
-        StartTreasure,  // gizemden treasure’a dal
-        Nothing         // hiçbir şey olmadı; yine de ilerle ve dön
+        None,
+        Coins,
+        StartCombat,
+        StartTreasure,
+        Nothing
     }
 
     public void StartMystery(Map.MapNode node)
     {
+        // Encounter hazırla
         run.pendingEncounter = new RunContext.EncounterData {
-            mapNode = node,
-            nodeType = node.Node.nodeType,
+            mapNode       = node,
+            nodeType      = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = Random.Range(int.MinValue, int.MaxValue),
+            seed          = Random.Range(int.MinValue, int.MaxValue),
         };
-        LoadMystery();
+
+        // 1) Node’dan Mystery ID çöz (varsayılan kural: blueprint.name)
+        string mysteryId = TryGetMysteryIdFromNode(node);
+
+        // 2) ActMysteryDatabase'ten bul / yoksa weighted random (Entry.weight)
+        MysteryData picked = null;
+        var rng = new System.Random(run.pendingEncounter.seed);
+
+        if (!string.IsNullOrEmpty(mysteryId) && mysteryDb != null)
+            picked = mysteryDb.GetById(mysteryId);
+
+        if (picked == null && mysteryDb != null)
+        {
+            if (!mysteryDb.TryGetRandomMystery(rng, out picked))
+                picked = null;
+        }
+
+        if (picked == null)
+        {
+            Debug.LogWarning("[GSD] Mystery bulunamadı; fallback mysteryScene yükleniyor.");
+            CurrentMystery = null;
+            LoadMystery(); // fallback sahne adı
+            return;
+        }
+
+        CurrentMystery = picked;
+        // (opsiyonel) run.pendingEncounter.mysteryId = picked.id;
+        LoadMysteryScene();
     }
 
+    // Varsayılan eşleştirme: Blueprint.name == MysteryData.id
+    string TryGetMysteryIdFromNode(Map.MapNode node)
+        => node?.Blueprint ? node.Blueprint.name : null;
+    /// <summary>GERİ UYUMLULUK: Eğer CurrentMystery yoksa eski 'mysteryScene' stringini yükler.</summary>
     async void LoadMystery()
     {
-        var op = SceneManager.LoadSceneAsync(mysteryScene, LoadSceneMode.Single);
+        // Eski davranış (sahne adı sabit)
+        var sceneToLoad = !string.IsNullOrEmpty(mysteryScene) ? mysteryScene : "MysteryScene";
+        var op = SceneManager.LoadSceneAsync(sceneToLoad, LoadSceneMode.Single);
+        while (!op.isDone) await Task.Yield();
+    }
+
+    /// <summary>Yeni davranış: CurrentMystery.sceneName’i yükler; boşsa fallback’e döner.</summary>
+    async void LoadMysteryScene()
+    {
+        if (CurrentMystery == null || string.IsNullOrEmpty(CurrentMystery.sceneName))
+        {
+            Debug.LogWarning("[GSD] CurrentMystery veya sceneName boş, fallback 'mysteryScene' kullanılacak.");
+            LoadMystery();
+            return;
+        }
+
+        var op = SceneManager.LoadSceneAsync(CurrentMystery.sceneName, LoadSceneMode.Single);
         while (!op.isDone) await Task.Yield();
     }
 
     /// <summary>Mystery sahnesi sonucunu raporla.</summary>
-    /// <param name="outcome">Sonraki adımı belirler.</param>
-    /// <param name="coinsGranted">Outcome=Coins ise ödenecek miktar.</param>
     public void ReportMysteryFinished(MysteryOutcome outcome, int coinsGranted = 0)
     {
         switch (outcome)
         {
             case MysteryOutcome.StartCombat:
-                // Not: pendingEncounter zaten bu node için setli.
                 LoadCombat();
                 return;
 
@@ -244,10 +294,10 @@ public class GameSessionDirector : MonoBehaviour
         System.Collections.IEnumerator ReturnToMapCo()
         {
             Debug.Log($"[GSD] Loading scene: {mapScene}");
-            var op = SceneManager.LoadSceneAsync(mapScene, LoadSceneMode.Single);
+            var op = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(mapScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
             while (!op.isDone) yield return null;
 
-            Debug.Log($"[GSD] Scene loaded: {SceneManager.GetActiveScene().name}");
+            Debug.Log($"[GSD] Scene loaded: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
             ResolveSceneRefs();
 
             var mm = _mapManager;

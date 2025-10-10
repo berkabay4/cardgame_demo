@@ -31,7 +31,7 @@ public class PingEnemiesOnDrawEffect : IRelicEffect
         if (dmg <= 0 || c?.combatDirector == null) return;
 
         // Basit yol: Player dışındaki tüm SimpleCombatant'lara hasar ver
-        var all = GameObject.FindObjectsOfType<SimpleCombatant>();
+        var all = GameObject.FindObjectsByType<SimpleCombatant>(FindObjectsSortMode.None);
         foreach (var sc in all)
         {
             if (sc == c.player) continue;
