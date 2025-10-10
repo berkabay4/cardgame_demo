@@ -1,0 +1,18 @@
+{
+    "name": "cwComponentBrowser.v6000",
+    "rootNamespace": "",
+    "references": [
+        "GUID:cca12c3b9de139749af3b0a0a0a40e6f"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_2023_2_OR_NEWER"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

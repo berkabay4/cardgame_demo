@@ -29,7 +29,11 @@ public class MapToSessionBridge : MonoBehaviour
                 break;
 
             case Map.NodeType.Treasure:
-                GameSessionDirector.Instance.StartTreasure(node); // ← yeni metod
+                GameSessionDirector.Instance.StartTreasure(node);
+                break;
+
+            case Map.NodeType.RestSite:
+                GameSessionDirector.Instance.StartRestSite(node);
                 break;
 
             default:

@@ -9,9 +9,11 @@ public class GameSessionDirector : MonoBehaviour
     public static GameSessionDirector Instance { get; private set; }
 
     [Header("Scene Names")]
-    [SerializeField] string mapScene    = "MapScene";
-    [SerializeField] string combatScene = "CombatScene";
-    [SerializeField] string treasureScene = "TreasureScene";  // ← yeni sahne adı
+    [SerializeField] string mapScene       = "MapScene";
+    [SerializeField] string combatScene    = "CombatScene";
+    [SerializeField] string treasureScene  = "TreasureScene";
+    [SerializeField] string restSiteScene  = "RestSiteScene";   // === NEW
+    [SerializeField] string mysteryScene   = "MysteryScene";    // === NEW
 
     [Header("Refs")]
     [SerializeField] RunContext run;
@@ -31,8 +33,10 @@ public class GameSessionDirector : MonoBehaviour
             if (wallet == null)
                 wallet = FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
             return wallet;
-        }   
+        }
     }
+
+    // === TREASURE ===
     public void StartTreasure(Map.MapNode node)
     {
         run.pendingEncounter = new RunContext.EncounterData {
@@ -44,37 +48,118 @@ public class GameSessionDirector : MonoBehaviour
         LoadTreasure();
     }
 
-
     async void LoadTreasure()
     {
-        var op = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(treasureScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
-        while (!op.isDone) await System.Threading.Tasks.Task.Yield();
+        var op = SceneManager.LoadSceneAsync(treasureScene, LoadSceneMode.Single);
+        while (!op.isDone) await Task.Yield();
     }
 
     /// <summary>Treasure sahnesi Claim edildiğinde buraya gelinir.</summary>
     public void ReportTreasureFinished(int coinsGranted)
     {
-        // cüzdana yaz
         var w = Wallet;
         if (coinsGranted > 0 && w != null) w.AddCoins(coinsGranted);
 
-        // path zaten selection anında eklenmişse dokunma; yoksa güvence:
         AdvanceMapProgressAfterWin();
-
-        // map'e dön
         ReturnToMap();
     }
 
+    // === REST SITE ===
+    public void StartRestSite(Map.MapNode node)
+    {
+        run.pendingEncounter = new RunContext.EncounterData {
+            mapNode = node,
+            nodeType = node.Node.nodeType,
+            blueprintName = node.Blueprint ? node.Blueprint.name : null,
+            seed = Random.Range(int.MinValue, int.MaxValue),
+        };
+        LoadRestSite();
+    }
+
+    async void LoadRestSite()
+    {
+        var op = SceneManager.LoadSceneAsync(restSiteScene, LoadSceneMode.Single);
+        while (!op.isDone) await Task.Yield();
+    }
+
+    /// <summary>RestSite sahnesi tamamlandığında çağır.</summary>
+    /// <param name="coinsGranted">Opsiyonel: Dinlenmede bonus/cebe para çıktıysa.</param>
+    public void ReportRestSiteFinished(int coinsGranted = 0)
+    {
+        var w = Wallet;
+        if (coinsGranted > 0 && w != null) w.AddCoins(coinsGranted);
+
+        AdvanceMapProgressAfterWin();
+        ReturnToMap();
+    }
+
+    // === MYSTERY ===
+    public enum MysteryOutcome
+    {
+        None,           // sadece ilerle ve dön
+        Coins,          // coin ver, ilerle ve dön
+        StartCombat,    // gizemden dövüşe dal
+        StartTreasure,  // gizemden treasure’a dal
+        Nothing         // hiçbir şey olmadı; yine de ilerle ve dön
+    }
+
+    public void StartMystery(Map.MapNode node)
+    {
+        run.pendingEncounter = new RunContext.EncounterData {
+            mapNode = node,
+            nodeType = node.Node.nodeType,
+            blueprintName = node.Blueprint ? node.Blueprint.name : null,
+            seed = Random.Range(int.MinValue, int.MaxValue),
+        };
+        LoadMystery();
+    }
+
+    async void LoadMystery()
+    {
+        var op = SceneManager.LoadSceneAsync(mysteryScene, LoadSceneMode.Single);
+        while (!op.isDone) await Task.Yield();
+    }
+
+    /// <summary>Mystery sahnesi sonucunu raporla.</summary>
+    /// <param name="outcome">Sonraki adımı belirler.</param>
+    /// <param name="coinsGranted">Outcome=Coins ise ödenecek miktar.</param>
+    public void ReportMysteryFinished(MysteryOutcome outcome, int coinsGranted = 0)
+    {
+        switch (outcome)
+        {
+            case MysteryOutcome.StartCombat:
+                // Not: pendingEncounter zaten bu node için setli.
+                LoadCombat();
+                return;
+
+            case MysteryOutcome.StartTreasure:
+                LoadTreasure();
+                return;
+
+            case MysteryOutcome.Coins:
+                var w = Wallet;
+                if (coinsGranted > 0 && w != null) w.AddCoins(coinsGranted);
+                break;
+
+            case MysteryOutcome.Nothing:
+            case MysteryOutcome.None:
+            default:
+                break;
+        }
+
+        // Combat/Treasure’a dallanmadıysa: nodu tamamla ve haritaya dön
+        AdvanceMapProgressAfterWin();
+        ReturnToMap();
+    }
+
+    // === LIFECYCLE ===
     void Awake()
     {
         if (Instance && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // İlk çözüm
         ResolveSceneRefs();
-
-        // Sahne değişince referansları tazele
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
@@ -91,11 +176,8 @@ public class GameSessionDirector : MonoBehaviour
 
     void ResolveSceneRefs()
     {
-        // MapManager
         _mapManager = FindFirstObjectByType<MapManager>(FindObjectsInactive.Include);
-        // Wallet
         if (wallet == null) wallet = FindFirstObjectByType<PlayerWallet>(FindObjectsInactive.Include);
-        // RunContext boşsa kaynakla (Resources/Inspector vs.)
         // if (!run) run = Resources.Load<RunContext>("RunContext");
     }
 
@@ -126,7 +208,6 @@ public class GameSessionDirector : MonoBehaviour
         if (playerWon)
         {
             run.pendingCoins = coins > 0 ? coins : baseMinorCoins;
-            // İstersen burada Reward UI aç; şimdilik direkt kabul:
             AcceptRewardAndReturnToMap();
         }
         else
@@ -139,7 +220,7 @@ public class GameSessionDirector : MonoBehaviour
     {
         if (run.pendingCoins > 0)
         {
-            var w = Wallet; // otomatik çözülmüş wallet
+            var w = Wallet;
             if (w != null) w.AddCoins(run.pendingCoins);
             else Debug.LogWarning("[GameSessionDirector] Wallet bulunamadı, ödül kaybedildi!");
         }
@@ -163,10 +244,10 @@ public class GameSessionDirector : MonoBehaviour
         System.Collections.IEnumerator ReturnToMapCo()
         {
             Debug.Log($"[GSD] Loading scene: {mapScene}");
-            var op = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(mapScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
+            var op = SceneManager.LoadSceneAsync(mapScene, LoadSceneMode.Single);
             while (!op.isDone) yield return null;
 
-            Debug.Log($"[GSD] Scene loaded: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
+            Debug.Log($"[GSD] Scene loaded: {SceneManager.GetActiveScene().name}");
             ResolveSceneRefs();
 
             var mm = _mapManager;

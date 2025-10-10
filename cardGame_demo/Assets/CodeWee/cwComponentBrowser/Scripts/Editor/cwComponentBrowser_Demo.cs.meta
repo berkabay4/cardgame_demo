@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: dd5985f7cb8d6ae4aa904316a3aea405
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 323301
+  packageName: Component Browser
+  packageVersion: 1.0.0
+  assetPath: Assets/CodeWee/cwComponentBrowser/Scripts/Editor/cwComponentBrowser_Demo.cs
+  uploadId: 789640

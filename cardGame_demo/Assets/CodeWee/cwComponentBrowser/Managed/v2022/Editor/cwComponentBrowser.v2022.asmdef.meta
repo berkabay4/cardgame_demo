@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f6edd7da569beaf43aff4789e36f3fd7
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 323301
+  packageName: Component Browser
+  packageVersion: 1.0.0
+  assetPath: Assets/CodeWee/cwComponentBrowser/Managed/v2022/Editor/cwComponentBrowser.v2022.asmdef
+  uploadId: 789640

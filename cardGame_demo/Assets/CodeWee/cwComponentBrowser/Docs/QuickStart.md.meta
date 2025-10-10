@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: e8ce27a2d8891e54a94ace59c4e4fc61
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 323301
+  packageName: Component Browser
+  packageVersion: 1.0.0
+  assetPath: Assets/CodeWee/cwComponentBrowser/Docs/QuickStart.md
+  uploadId: 789640
