@@ -20,27 +20,27 @@ public class MysteryBootstrap : MonoBehaviour
         }
 
         var data = gsd.CurrentMystery;
-        var type = data.GetHandlerType();
-        if (type == null)
-        {
-            Debug.LogError($"[MysteryBootstrap] Handler tipi çözülemedi: {data.HandlerTypeName}");
-            gsd.ReturnToMap();
-            return;
-        }
+        // var type = data.GetHandlerType();
+        // if (type == null)
+        // {
+        //     Debug.LogError($"[MysteryBootstrap] Handler tipi çözülemedi: {data.HandlerTypeName}");
+        //     gsd.ReturnToMap();
+        //     return;
+        // }
 
-        var go = new GameObject(type.Name);
-        var comp = go.AddComponent(type) as IMystery;
-        if (comp == null)
-        {
-            Debug.LogError($"[MysteryBootstrap] {type.Name} IMystery değil!");
-            Destroy(go);
-            gsd.ReturnToMap();
-            return;
-        }
+        // var go = new GameObject(type.Name);
+        // var comp = go.AddComponent(type) as IMystery;
+        // if (comp == null)
+        // {
+        //     Debug.LogError($"[MysteryBootstrap] {type.Name} IMystery değil!");
+        //     Destroy(go);
+        //     gsd.ReturnToMap();
+        //     return;
+        // }
 
         int seed = ResolveSeed(gsd);
         var ctx  = new MysteryContext(data, gsd.Run, gsd, new System.Random(seed));
-        comp.Init(ctx);
+        // comp.Init(ctx);
     }
 
     private int ResolveSeed(GameSessionDirector gsd)

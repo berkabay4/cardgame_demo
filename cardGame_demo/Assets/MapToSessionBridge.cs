@@ -35,6 +35,9 @@ public class MapToSessionBridge : MonoBehaviour
             case Map.NodeType.RestSite:
                 GameSessionDirector.Instance.StartRestSite(node);
                 break;
+            case Map.NodeType.Mystery:
+                GameSessionDirector.Instance.StartMystery(node);
+                break;
 
             default:
                 Debug.Log($"[Bridge] Non-wired node: {node.Node.nodeType}");

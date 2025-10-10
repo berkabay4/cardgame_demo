@@ -15,4 +15,4 @@ MonoBehaviour:
   act: 1
   mysteries:
   - data: {fileID: 11400000, guid: 65278e8df51c3c442a8298576383f79d, type: 2}
-    weight: 0
+    weight: 100

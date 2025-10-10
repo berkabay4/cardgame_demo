@@ -13,9 +13,7 @@ MonoBehaviour:
   m_Name: MysteryData_
   m_EditorClassIdentifier: Assembly-CSharp::MysteryData
   id: 01
-  displayName: ShellGame
-  description: aaaa
+  displayName: shell
+  description: shell
   sceneName: MysteryScene
-  handlerTypeName: Mystery_ShellGame, Assembly-CSharp, Version=0.0.0.0, Culture=neutral,
-    PublicKeyToken=null
   weight: 1
