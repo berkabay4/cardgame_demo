@@ -40,7 +40,7 @@ namespace Map
         {
             Map map = MapGenerator.GetMap(config);
             CurrentMap = map;
-            Debug.Log(map.ToJson());
+            // Debug.Log(map.ToJson());
             view.ShowMap(map);
         }
 

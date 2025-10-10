@@ -26,7 +26,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     [SerializeField] private bool dontDestroyOnLoad = true;
     [SerializeField] private bool autoStartOnAwake = false;
     public UnityEvent onGameStarted;
-
+    static int? s_LastPlayerHP;
     [Header("Settings")]
     [SerializeField, Min(1)] int threshold = 21;
     [SerializeField] bool reshuffleWhenLow = true;
@@ -121,13 +121,21 @@ void Awake()
     void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
     void OnDisable() => EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
 
+
     IEnumerator Start()
     {
         // Spawner’ların Awake/Start’ı bitsin
-        yield return null; // 1 frame bekle
+        yield return null;
 
-        ResolveRefsInitial();    // <- player & enemies doğru kur
-        BuildContextAndSystems(); // <- Ctx, Queue, Controller’lar
+        ResolveRefsInitial();
+        BuildContextAndSystems();
+
+        // ▶ Win / GameOver olduğunda HP yakala
+        onGameWin.AddListener(CapturePlayerHP);
+        onGameOver.AddListener(CapturePlayerHP);
+
+        // ▶ Yeni combat başlarken varsa taşınan HP’yi uygula
+        ApplyCarriedHPIfAny();
 
         if (autoStartOnAwake) StartGame(); else onLog?.Invoke("Press START to begin.");
     }
@@ -401,6 +409,37 @@ void Awake()
                 break;
         }
     }
+    void CapturePlayerHP()
+    {
+        var hm = player ? player.GetComponent<HealthManager>() : null;
+        if (hm != null)
+        {
+            s_LastPlayerHP = hm.CurrentHP;
+            onLog?.Invoke($"[CarryHP] Saved HP = {s_LastPlayerHP}/{hm.MaxHP}");
+        }
+    }
+
+    // --- EK: HP’yi uygula (yeni combat açılışında) ---
+    void ApplyCarriedHPIfAny()
+    {
+        var hm = player ? player.GetComponent<HealthManager>() : null;
+        if (hm == null) return;
+
+        if (s_LastPlayerHP.HasValue)
+        {
+            // 0 ise (game over) yeni runda nasıl davranacağını sen belirleyebilirsin;
+            // burada minimum 1’e clamp ediyoruz ki oyun akışı bozmasın.
+            int target = Mathf.Clamp(s_LastPlayerHP.Value, 1, hm.MaxHP);
+            hm.SetHP(target);
+            onLog?.Invoke($"[CarryHP] Applied HP = {target}/{hm.MaxHP}");
+        }
+        else
+        {
+            // İlk combat veya kayıt yok: dokunma (sahnedeki değer neyse o)
+            onLog?.Invoke("[CarryHP] No carried HP found. Using scene value.");
+        }
+    }
+
     public void ResolveNow()
     {
         Run(_resolution.ResolveRoundAndRestart());
