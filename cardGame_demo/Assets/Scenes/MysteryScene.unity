@@ -532,6 +532,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   mapButtonRoot: {fileID: 1156658402}
   mapButton: {fileID: 645445810}
+  showReturnAtStart: 0
+  mapSceneName: MapScene
+  mysteryEventSource: {fileID: 806268494}
 --- !u!1 &515392304
 GameObject:
   m_ObjectHideFlags: 0
@@ -1486,6 +1489,7 @@ MonoBehaviour:
   shuffleSwaps: 10
   singleSwapDuration: 0.15
   minStake: 1
+  debugLogs: 0
 --- !u!1 &860146348
 GameObject:
   m_ObjectHideFlags: 0
@@ -2219,8 +2223,8 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1493105625}
   m_CullTransparentMesh: 1
---- !u!4 &1587954236 stripped
-Transform:
+--- !u!224 &1587954236 stripped
+RectTransform:
   m_CorrespondingSourceObject: {fileID: 6861619910916413513, guid: 3fcc679976654be44b38d847f6268180, type: 3}
   m_PrefabInstance: {fileID: 1872652451}
   m_PrefabAsset: {fileID: 0}

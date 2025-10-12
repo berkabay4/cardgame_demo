@@ -21,7 +21,7 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
     [Header("Targets (3 cups)")]
     [SerializeField] private Button[] targetButtons = new Button[3];          // 3 adet
     [SerializeField] private Transform[] targetTransforms = new Transform[3]; // aynı sırada
-
+    public event System.Action<MysteryResult> OnMysteryCompleted; // <-- EKLENDİ
     [Header("UI")]
     [SerializeField] private TMP_Text infoText;
     [SerializeField] private TMP_Text stakeText;
@@ -336,7 +336,6 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
         SetTargetsInteractable(true);
         inputLocked = false;
     }
-
     private void OnPick(int pickIndex)
     {
         if (inputLocked) return;
@@ -349,15 +348,29 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
 
         if (win)
         {
-            // Başta -stake düşmüştük; şimdi 2x öde (net +stake)
+            // Zaten stake kesilmişti; şimdi 2x ödeyip net +stake yapıyoruz
             Payout(stake * 2, "win payout (2x)");
             infoText?.SetText($"You WIN! payout +{stake * 2} (profit +{stake})");
-            ctx?.CompleteNothing();
+
+            // ---> EVENT: coinleri zaten cüzdana yazdık, o yüzden 0 gönderiyoruz
+            OnMysteryCompleted?.Invoke(new MysteryResult {
+                // outcome = MysteryOutcome.Nothing, // projenizdeki "None/Nothing" ne ise onu kullanın
+                coins = 0
+            });
+
+            ctx?.CompleteNothing(); // istersen kaldır
         }
         else
         {
             infoText?.SetText($"You LOSE! (lost {stake})");
-            ctx?.CompleteNothing();
+
+            // ---> EVENT: kayıp da tamamlandı sinyali
+            OnMysteryCompleted?.Invoke(new MysteryResult {
+                // outcome = MysteryOutcome.Nothing,
+                coins = 0
+            });
+
+            ctx?.CompleteNothing(); // istersen kaldır
         }
 
         UpdateWalletAndStakeText(GetWalletCoins());
