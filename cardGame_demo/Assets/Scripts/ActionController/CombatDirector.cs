@@ -27,6 +27,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     [SerializeField] private bool autoStartOnAwake = false;
     public UnityEvent onGameStarted;
     static int? s_LastPlayerHP;
+
     [Header("Settings")]
     [SerializeField, Min(1)] int threshold = 21;
     [SerializeField] bool reshuffleWhenLow = true;
@@ -62,9 +63,9 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public TargetEvent onTargetChanged;
     public IReadOnlyList<SimpleCombatant> AliveEnemies => _enemies?.AliveEnemies ?? _enemies?.All ?? new List<SimpleCombatant>();
 
-    // --------- Animation Bridge (UI/Animator tarafı bağlanır) ----------
+    // --------- Animation Bridge ----------
     [Header("Animation Events")]
-    public UnityEvent<SimpleCombatant, SimpleCombatant, int> onAttackAnimationRequest; // (attacker, defender, damage)
+    public UnityEvent<SimpleCombatant, SimpleCombatant, int> onAttackAnimationRequest;
 
     // --------- Internals ----------
     public CombatContext Ctx { get; private set; }
@@ -88,7 +89,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public UIEvents Events = new UIEvents();
 
     bool _isGameStarted;
-    bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?     
+    bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?
     // === ICoroutineHost ===
     public Coroutine Run(IEnumerator routine) => StartCoroutine(routine);
 
@@ -111,16 +112,15 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         while (!_animDone && t > 0f) { t -= Time.deltaTime; yield return null; }
     }
 
-void Awake()
-{
-    if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-    Instance = this;
-    if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
-}
+    void Awake()
+    {
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        Instance = this;
+        if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+    }
 
     void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
     void OnDisable() => EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
-
 
     IEnumerator Start()
     {
@@ -139,6 +139,7 @@ void Awake()
 
         if (autoStartOnAwake) StartGame(); else onLog?.Invoke("Press START to begin.");
     }
+
     void ResolveRefsInitial()
     {
         // --- Player'ı bul ---
@@ -148,7 +149,6 @@ void Awake()
         var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         enemies = all.Where(e => e && e != player).ToList();
 
-        // Bilgi
         onLog?.Invoke($"[Init] Player: {(player ? player.name : "NULL")} | Enemies: {enemies.Count}");
     }
 
@@ -173,6 +173,7 @@ void Awake()
 
         return null;
     }
+
     void BuildContextAndSystems()
     {
         var firstEnemy = enemies.Count > 0 ? enemies[0] : null;
@@ -185,8 +186,12 @@ void Awake()
         // --- Deck kayıtları ---
         var pDeck = BuildDeckForUnit(player);
         Ctx.RegisterDeck(player, pDeck);
+
         foreach (var e in enemies.Where(x => x))
-            Ctx.RegisterDeck(e, BuildDeckForUnit(e));
+        {
+            var d = BuildDeckForUnit(e);
+            Ctx.RegisterDeck(e, d);
+        }
 
         // >>>> YENİ: PlayerStats'tan per-phase threshold uygula (BAŞLANGIÇTA)
         ApplyInitialPlayerThresholds();
@@ -203,6 +208,9 @@ void Awake()
 
         _systemsReady = true;
         ContextReady?.Invoke();
+
+        // Log: başlangıç deste boyutları
+        onLog?.Invoke($"[Decks] PlayerDeck={Ctx.GetDeckFor(Actor.Player)?.Count ?? 0} | EnemyDecks={enemies.Count}");
     }
 
     void ApplyInitialPlayerThresholds()
@@ -212,7 +220,6 @@ void Awake()
         var stats = player.GetComponentInChildren<PlayerStats>(true);
         if (stats)
         {
-            // PlayerData’da örn: DEF=30, ATK=15 → direkt uygula
             Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  stats.MaxAttackRange);
             Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Defense, stats.MaxDefenseRange);
             onLog?.Invoke($"[Init] Player thresholds set from stats → ATK:{stats.MaxAttackRange} DEF:{stats.MaxDefenseRange}");
@@ -222,6 +229,7 @@ void Awake()
             onLog?.Invoke("[Init] PlayerStats not found on player. Using fallback/global threshold.");
         }
     }
+
     public void ResetCombatState()
     {
         Log("[Director] Resetting combat state...");
@@ -258,16 +266,48 @@ void Awake()
 
     IDeckService BuildDeckForUnit(SimpleCombatant unit)
     {
-        if (!unit) return new DeckService(); // default
+        // 1) CombatantDeck varsa onu kullan (içinde SetInitialCards/Shuffle çağrısı yapıyor olmalı)
+        if (unit)
+        {
+            var def = unit.GetComponent<CombatantDeck>();
+            if (def != null)
+            {
+                var built = def.BuildDeck();
+                // Güvenlik logu
+                onLog?.Invoke($"[Deck] {unit.name} deck built → {built?.Count ?? 0} cards.");
+                return built ?? new DeckService();
+            }
+        }
 
-        var def = unit.GetComponent<CombatantDeck>();
-        if (def != null) return def.BuildDeck();
+        // 2) Fallback: default 52 kart + (opsiyonel) 2 Joker
+        var deck = new DeckService();
+        var initial = CreateDefault52();
+        // initial.Add(new Card(Rank.Joker, "None"));
+        // initial.Add(new Card(Rank.Joker, "None"));
 
-        // FallBack: boş default deste
-        var d = new DeckService();
-        d.RebuildAndShuffle();
-        return d;
+        deck.SetInitialCards(initial, takeSnapshot: true);
+        deck.Shuffle();
+
+        onLog?.Invoke($"[Deck] Fallback deck built for {(unit ? unit.name : "NULL")} → {deck.Count} cards.");
+        return deck;
     }
+
+    List<Card> CreateDefault52()
+    {
+        var list = new List<Card>(52);
+        string[] suits = { "Clubs", "Diamonds", "Hearts", "Spades" };
+
+        foreach (var s in suits)
+        {
+            for (int v = 2; v <= 10; v++) list.Add(new Card((Rank)v, s));
+            list.Add(new Card(Rank.Jack,  s));
+            list.Add(new Card(Rank.Queen, s));
+            list.Add(new Card(Rank.King,  s));
+            list.Add(new Card(Rank.Ace,   s));
+        }
+        return list;
+    }
+
     void OnEnemiesSpawnedEvent()
     {
         // Sistemler daha hazır değilse, sadece sahnedeki enemy referanslarını topla ve çık
@@ -283,6 +323,7 @@ void Awake()
         _enemies.Refresh();
         onLog?.Invoke($"[Director] Enemies refreshed. Count={_enemies.AliveEnemies.Count}");
     }
+
     // === External API (UI) ===
     public void StartGame()
     {
@@ -342,15 +383,15 @@ void Awake()
         var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack,  false, false);
         if (eAtk != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  eAtk.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Attack));
     }
+
     public void Log(string msg)
     {
         Debug.Log($"[GameDirector] {msg}");
-        onLog?.Invoke(msg); // UI log'un varsa buradan iletilir
+        onLog?.Invoke(msg);
     }
-    public int GetThresholdSafe()
-    {
-        return Ctx != null ? Ctx.Threshold : threshold;
-    }
+
+    public int GetThresholdSafe() => Ctx != null ? Ctx.Threshold : threshold;
+
     // === Turn flow ===
     public void StartNewTurn()
     {
@@ -366,6 +407,7 @@ void Awake()
         if (_enemy.Running != null) StopCoroutine(_enemy.Running);
         _enemy.Running = StartCoroutine(_enemy.PrecomputeBothPhasesThen(() => BeginPhase(TurnStep.PlayerDef)));
     }
+
     public void SetPlayerPhaseThresholds(int atk, int def)
     {
         if (Ctx == null) return;
@@ -373,13 +415,13 @@ void Awake()
         Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Defense, def);
     }
 
-    // Düşman için istersen:
     public void SetEnemyPhaseThresholds(int atk, int def)
     {
         if (Ctx == null) return;
         Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  atk);
         Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, def);
     }
+
     public void BeginPhase(TurnStep step)
     {
         State.SetStep(step, onStepChanged, onLog);
@@ -397,18 +439,17 @@ void Awake()
                 break;
 
             case TurnStep.SelectTarget:
-                // Tek düşman varsa otomatik seç; yoksa beklemeye geç
                 _targeting.BeginTargetMode(State.PlayerAtkTotal, TryAutoTargetSingle: true);
 
-                // ⬇️ OTOMATİK HEDEF seçildiyse (Waiting=false ve CurrentTarget dolu) hemen çöz
                 if (!State.WaitingForTarget && State.CurrentTarget != null)
                 {
                     Run(_resolution.ResolveRoundAndRestart());
-                    return; // çözüm akışı faz değişimini yönetecek
+                    return;
                 }
                 break;
         }
     }
+
     void CapturePlayerHP()
     {
         var hm = player ? player.GetComponent<HealthManager>() : null;
@@ -427,15 +468,12 @@ void Awake()
 
         if (s_LastPlayerHP.HasValue)
         {
-            // 0 ise (game over) yeni runda nasıl davranacağını sen belirleyebilirsin;
-            // burada minimum 1’e clamp ediyoruz ki oyun akışı bozmasın.
             int target = Mathf.Clamp(s_LastPlayerHP.Value, 1, hm.MaxHP);
             hm.SetHP(target);
             onLog?.Invoke($"[CarryHP] Applied HP = {target}/{hm.MaxHP}");
         }
         else
         {
-            // İlk combat veya kayıt yok: dokunma (sahnedeki değer neyse o)
             onLog?.Invoke("[CarryHP] No carried HP found. Using scene value.");
         }
     }
@@ -444,6 +482,7 @@ void Awake()
     {
         Run(_resolution.ResolveRoundAndRestart());
     }
+
     // === helpers ===
     bool _guardInput()
     {

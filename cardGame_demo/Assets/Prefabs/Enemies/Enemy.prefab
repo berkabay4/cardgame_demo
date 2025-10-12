@@ -188,6 +188,8 @@ SpriteRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -209,6 +211,7 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -615,6 +618,7 @@ GameObject:
   - component: {fileID: 3478923218211279739}
   - component: {fileID: 8830286263138758337}
   - component: {fileID: -4672133133476110376}
+  - component: {fileID: -8046813441261384839}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Enemy
@@ -747,7 +751,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   self: {fileID: 2978311477843390898}
-  coordinator: {fileID: 0}
+  combatDirector: {fileID: 0}
 --- !u!114 &8830286263138758337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -760,6 +764,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a88b9301ea9c3eb43ba7872392a5cec9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  capacity: 0
+  createOnAwake: 1
+  onCardAdded:
+    m_PersistentCalls:
+      m_Calls: []
+  onCountChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeckReset:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &-4672133133476110376
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -773,6 +788,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   defaultThreshold: 21
+--- !u!114 &-8046813441261384839
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7984944881641689443}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2b5bc6d4261980428cd0ad909fea870, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatantDeck
+  deckData: {fileID: 11400000, guid: 56f52b60db797394a9ec71bff4e5e9eb, type: 2}
+  shuffleOnStart: 1
 --- !u!1 &8605238606599505194
 GameObject:
   m_ObjectHideFlags: 0
@@ -819,7 +848,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6df606720599a8b4d99d341d6561ba4b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameDirector: {fileID: 0}
+  combatDirector: {fileID: 0}
   self: {fileID: 2978311477843390898}
   defText: {fileID: 1280550519397927903}
   atkText: {fileID: 6392166384130442496}

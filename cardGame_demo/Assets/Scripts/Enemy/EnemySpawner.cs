@@ -202,43 +202,77 @@ public class EnemySpawner : MonoBehaviour
     {
         if (!go) return;
 
-        var owner = go.GetComponentInChildren<DeckOwner>(true) ?? go.AddComponent<DeckOwner>();
-        int seed = (go.GetInstanceID() ^ Random.Range(0, int.MaxValue));
-        owner.CreateNewDeck(seed);
-
+        // ---- 1) DeckOwner/DeckHandle hazırla ----
+        var owner  = go.GetComponentInChildren<DeckOwner>(true) ?? go.AddComponent<DeckOwner>();
         var handle = go.GetComponentInChildren<DeckHandle>(true) ?? go.AddComponent<DeckHandle>();
+
+        // ---- 2) CombatantDeck varsa ondan kur, yoksa fallback kur ----
+        IDeckService deck = null;
+        var combatantDeck = go.GetComponentInChildren<CombatantDeck>(true);
+        if (combatantDeck != null)
+        {
+            deck = combatantDeck.BuildDeck();            // DeckData → cards → SetInitialCards+Shuffle
+        }
+        else
+        {
+            Debug.LogError("[EnemySpawner] No CombatantDeck found on enemy prefab. Please add one for proper deck setup.");
+            // // Fallback: 52 + 1 Joker
+            // var d = new DeckService();
+            // var cards = CreateDefault52PlusJoker();
+            // d.SetInitialCards(cards, takeSnapshot: true);
+            // d.Shuffle();
+            // deck = d;
+        }
+
+        // DeckOwner'a ver ve handle'ı bağla
+        owner.SetDeck(deck as DeckService ?? new DeckService());   // DeckService tipindeyse direkt set
         handle.Bind(owner.Deck);
 
+        // ---- 3) Context kaydı + threshold ----
         var sc  = go.GetComponentInChildren<SimpleCombatant>(true);
         var ctx = CombatDirector.Instance ? CombatDirector.Instance.Ctx : null;
 
-        // data’dan faz eşikleri
-        int atkMax = (data != null) ? Mathf.Max(5, data.maxAttackRange)  : ((ctx != null) ? ctx.Threshold : 21);  // ← FIX
-        int defMax = (data != null) ? Mathf.Max(5, data.maxdefenceRange) : ((ctx != null) ? ctx.Threshold : 21);  // ← FIX
+        // EnemyData’dan faz eşikleri (yoksa global fallback)
+        int atkMax = (data != null) ? Mathf.Max(5, data.maxAttackRange)  : ((ctx != null) ? ctx.Threshold : 21);
+        int defMax = (data != null) ? Mathf.Max(5, data.maxdefenceRange) : ((ctx != null) ? ctx.Threshold : 21);
 
-        if (ctx != null && sc != null)
+        if (registerToContext && ctx != null && sc != null)
         {
             ctx.RegisterEnemy(sc, owner.Deck);
-
             ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  atkMax);
             ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, defMax);
-
-            Debug.Log($"[EnemySpawner] Registered enemy to CombatContext + thresholds set: {sc.name} (ATK:{atkMax}, DEF:{defMax})");
+            Debug.Log($"[EnemySpawner] Registered '{sc.name}' → Deck={owner.Deck.Count}, ATK:{atkMax}, DEF:{defMax}");
         }
         else
         {
             if (sc != null)
             {
                 _pendingCtxRegs.Add(new PendingEnemy { sc = sc, deck = owner.Deck, atkMax = atkMax, defMax = defMax });
-                Debug.LogWarning("[EnemySpawner] Context not ready — queued pending registration + thresholds.");
+                Debug.LogWarning($"[EnemySpawner] Context not ready — queued '{sc.name}'. Deck={owner.Deck.Count}, ATK:{atkMax}, DEF:{defMax}");
             }
             else
             {
-                Debug.LogWarning("[EnemySpawner] SimpleCombatant missing — cannot queue registration.");
+                Debug.LogWarning("[EnemySpawner] SimpleCombatant missing — cannot register.");
             }
         }
     }
 
+    // İstersen dosyanın altına ekle (fallback için)
+    List<Card> CreateDefault52PlusJoker()
+    {
+        var list = new List<Card>(53);
+        string[] suits = { "Clubs", "Diamonds", "Hearts", "Spades" };
+        foreach (var s in suits)
+        {
+            for (int v = 2; v <= 10; v++) list.Add(new Card((Rank)v, s));
+            list.Add(new Card(Rank.Jack,  s));
+            list.Add(new Card(Rank.Queen, s));
+            list.Add(new Card(Rank.King,  s));
+            list.Add(new Card(Rank.Ace,   s));
+        }
+        list.Add(new Card(Rank.Joker, "None"));
+        return list;
+    }
     void DestroyChildrenOf(Transform t)
     {
         if (!t) return;

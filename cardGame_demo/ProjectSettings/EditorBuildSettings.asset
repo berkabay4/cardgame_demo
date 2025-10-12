@@ -15,7 +15,10 @@ EditorBuildSettings:
     path: Assets/Scenes/TreasureScene.unity
     guid: f3206832672c7d54e9d2cfbd975eff31
   - enabled: 1
-    path: Assets/Scenes/MysteryScene.unity
+    path: Assets/Scenes/RestScene.unity
+    guid: dc1526e706aafb84290ab44c54d0225e
+  - enabled: 1
+    path: Assets/Scenes/MysteryScenes/MysteryScene.unity
     guid: ce9ccfba8f3a72d46bfb76324c2b1a3f
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}

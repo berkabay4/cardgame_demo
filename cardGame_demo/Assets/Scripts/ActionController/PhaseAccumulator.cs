@@ -31,27 +31,29 @@ public class PhaseAccumulator
         if (IsStanding || IsBusted) return;
 
         var c = deck.Draw();
+        if (c == null)
+        {
+            Debug.LogWarning($"[{_name}] HIT → draw failed (no card).");
+            return; // ya da burada Stand vermeyi tercih edebilirsin
+        }
+
         Cards.Add(c);
 
         // --- JOKER KURALI (Sadece OYUNCU için) ---
         if (_isPlayer && c.IsJoker)
         {
             Total = threshold;
-            IsStanding = true;         // otomatik Stand
-            // Debug.Log($"[{_name}] HIT → JOKER! {Total}/{threshold} (auto-Stand)");
+            IsStanding = true; // auto-Stand
             return;
         }
 
         int raw = BlackjackMath.RawTotal(Cards);
         Total = raw;
 
-        // Debug.Log($"[{_name}] HIT → {c} | {Total}/{threshold}");
-
         if (Total > threshold)
         {
             IsBusted = true;
             Total = 0;
-            // Debug.Log($"[{_name}] BUST! Value becomes 0.");
         }
     }
 

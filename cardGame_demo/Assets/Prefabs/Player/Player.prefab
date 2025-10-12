@@ -182,7 +182,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 81438248a99861e42a929dfe503364fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameDirector: {fileID: 0}
+  combatDirector: {fileID: 0}
   defText: {fileID: 408190298120373751}
   atkText: {fileID: 300735851782444363}
   format: '{0} / {1}'
@@ -376,6 +376,8 @@ SpriteRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -397,6 +399,7 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -696,6 +699,7 @@ GameObject:
   - component: {fileID: 1287061904881270359}
   - component: {fileID: 4942838125795697065}
   - component: {fileID: 5179138457796771799}
+  - component: {fileID: 5584923032151427916}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -733,6 +737,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3fdc2ca1e0d350749b58b145547a2867, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  dontDestroyOnLoad: 1
+  playerData: {fileID: 0}
+  combatant: {fileID: 0}
+  health: {fileID: 0}
+  stats: {fileID: 0}
+  deckOwner: {fileID: 0}
+  deckHandle: {fileID: 0}
+  wallet: {fileID: 0}
+  onPlayerDataChanged:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &1287061904881270359
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -793,6 +808,31 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a88b9301ea9c3eb43ba7872392a5cec9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  capacity: 0
+  createOnAwake: 1
+  onCardAdded:
+    m_PersistentCalls:
+      m_Calls: []
+  onCountChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeckReset:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &5584923032151427916
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7279929192292158669}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2b5bc6d4261980428cd0ad909fea870, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatantDeck
+  deckData: {fileID: 11400000, guid: f3fb3b9eb993b5b4799655350260dbce, type: 2}
+  shuffleOnStart: 1
 --- !u!1 &9056599535844988700
 GameObject:
   m_ObjectHideFlags: 0

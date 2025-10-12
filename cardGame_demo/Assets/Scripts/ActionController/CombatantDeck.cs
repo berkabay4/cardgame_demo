@@ -1,29 +1,42 @@
-// CombatantDeck.cs
 using UnityEngine;
 using System.Collections.Generic;
-using SingularityGroup.HotReload;
 
 [DisallowMultipleComponent]
 public class CombatantDeck : MonoBehaviour
 {
-    [Tooltip("Bu aktörün destesi için başlangıç kartları (boşsa fabrika default üretir).")]
-    public List<Card> initialCards = new();
+    [Header("Data Source")]
+    [Tooltip("Bu aktör için kullanılacak DeckData")]
+    public DeckData deckData;
 
+    [Header("Start Options")]
     [Tooltip("Sahne başında karılsın mı?")]
     public bool shuffleOnStart = true;
 
     public IDeckService BuildDeck()
     {
-        var deck = new DeckService();  // Kendi DeckService'ini kullan
-        if (initialCards != null && initialCards.Count > 0)
+        var deck = new DeckService();
+
+        List<Card> cards = null;
+
+        if (deckData != null)
         {
-            deck.ClearAndAdd(initialCards); // Eğer yoksa: önce deck.Clear(); sonra tek tek deck.Add(card);
+            cards = deckData.GetCards();
         }
+
+        // DeckData yoksa tamamen boş kalmasın diye güvenli fallback
+        if (cards == null || cards.Count == 0)
+        {
+            cards = DeckData.CreateStandard52();   // 52 default
+            // İstersen buraya 1 Joker varsayılanı da ekleyebilirsin:
+            // cards.Add(new Card(Rank.Joker, "None"));
+        }
+
+        deck.SetInitialCards(cards, takeSnapshot: true);
+
         if (shuffleOnStart)
-        {
-            deck.RebuildAndShuffle();
-            Debug.Log("sa1");
-        }
+            deck.Shuffle();
+
+        Debug.Log($"[CombatantDeck] Built from {(deckData ? deckData.name : "Default")} → {deck.Count} cards");
         return deck;
     }
 }
