@@ -3,6 +3,7 @@ using UnityEngine.SceneManagement;
 using System.Threading.Tasks;
 using Map;
 using System.Linq;
+using System;
 
 public class GameSessionDirector : MonoBehaviour
 {
@@ -21,16 +22,24 @@ public class GameSessionDirector : MonoBehaviour
     private PlayerWallet wallet;
 
     [SerializeField] int baseMinorCoins = 50;
-
+    private Act CurrentAct => run != null ? run.currentAct : currentActFallback;
     // === Mystery (Data-Driven) ===
     [Header("Mystery (Data-Driven)")]
-    [SerializeField] private ActMysteryDatabase mysteryDb;   // Inspector’dan ver
+    [Tooltip("Mevcut ACT'e göre buradaki listeden uygun DB seçilir.")]
+    [SerializeField] private ActMysteryDatabase[] mysteryDbs;
+
+    [Tooltip("Geri uyumluluk için tekil DB. Dizi boş/uygun yoksa bundan okunur.")]
+    [SerializeField] private ActMysteryDatabase mysteryDb;
+
+    [Tooltip("Act tespit edilemezse kullanılacak yedek değer.")]
+    [SerializeField] private Act currentActFallback = Act.Act1;
+
     public MysteryData CurrentMystery { get; private set; }
     public RunContext Run => run;
 
     MapManager _mapManager;
 
-    // --- Wallet erişimi (önce Singleton, sonra sahnede ara, sonra serialized fallback) ---
+    // --- Wallet erişimi ---
     PlayerWallet Wallet
     {
         get
@@ -49,7 +58,7 @@ public class GameSessionDirector : MonoBehaviour
             mapNode = node,
             nodeType = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = Random.Range(int.MinValue, int.MaxValue),
+            seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
         LoadTreasure();
     }
@@ -77,7 +86,7 @@ public class GameSessionDirector : MonoBehaviour
             mapNode = node,
             nodeType = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = Random.Range(int.MinValue, int.MaxValue),
+            seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
         LoadRestSite();
     }
@@ -115,41 +124,44 @@ public class GameSessionDirector : MonoBehaviour
             mapNode       = node,
             nodeType      = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed          = Random.Range(int.MinValue, int.MaxValue),
+            seed          = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
+
+        // Geçerli ACT'e uygun DB'yi çöz
+        var db = ResolveActiveMysteryDb();
 
         // 1) Node’dan Mystery ID çöz (varsayılan kural: blueprint.name)
         string mysteryId = TryGetMysteryIdFromNode(node);
 
-        // 2) ActMysteryDatabase'ten bul / yoksa weighted random (Entry.weight)
+        // 2) DB’den bul / yoksa weighted random
         MysteryData picked = null;
         var rng = new System.Random(run.pendingEncounter.seed);
 
-        if (!string.IsNullOrEmpty(mysteryId) && mysteryDb != null)
-            picked = mysteryDb.GetById(mysteryId);
+        if (!string.IsNullOrEmpty(mysteryId) && db != null)
+            picked = db.GetById(mysteryId);
 
-        if (picked == null && mysteryDb != null)
+        if (picked == null && db != null)
         {
-            if (!mysteryDb.TryGetRandomMystery(rng, out picked))
+            if (!db.TryGetRandomMystery(rng, out picked))
                 picked = null;
         }
 
         if (picked == null)
         {
-            Debug.LogWarning("[GSD] Mystery bulunamadı; fallback mysteryScene yükleniyor.");
+            Debug.LogWarning("[GSD] Uygun Mystery bulunamadı veya DB yok; fallback mysteryScene yükleniyor.");
             CurrentMystery = null;
             LoadMystery(); // fallback sahne adı
             return;
         }
 
         CurrentMystery = picked;
-        // (opsiyonel) run.pendingEncounter.mysteryId = picked.id;
         LoadMysteryScene();
     }
 
     // Varsayılan eşleştirme: Blueprint.name == MysteryData.id
     string TryGetMysteryIdFromNode(Map.MapNode node)
         => node?.Blueprint ? node.Blueprint.name : null;
+
     /// <summary>GERİ UYUMLULUK: Eğer CurrentMystery yoksa eski 'mysteryScene' stringini yükler.</summary>
     async void LoadMystery()
     {
@@ -238,7 +250,7 @@ public class GameSessionDirector : MonoBehaviour
             mapNode = node,
             nodeType = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = Random.Range(int.MinValue, int.MaxValue),
+            seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
         LoadCombat();
     }
@@ -331,5 +343,76 @@ public class GameSessionDirector : MonoBehaviour
 
         _mapManager.view?.SetAttainableNodes();
         _mapManager.view?.SetLineColors();
+    }
+
+    // ====== YENİ KISIM: ACT çöz ve uygun DB'yi seç ======
+
+    /// <summary>Mevcut ACT'i tespit eder: Önce MapManager.CurrentMap.act, sonra RunContext (act/currentAct), en son fallback.</summary>
+    private Act ResolveCurrentAct()
+    {
+        // 1) MapManager.CurrentMap.act (eğer varsa)
+        try
+        {
+            var curMap = _mapManager?.CurrentMap;
+            if (curMap != null)
+            {
+                var mapType = curMap.GetType();
+                var actProp = mapType.GetProperty("act") ?? mapType.GetProperty("Act");
+                if (actProp != null && actProp.PropertyType == typeof(Act))
+                    return (Act)actProp.GetValue(curMap);
+            }
+        }
+        catch { /* yoksay */ }
+
+        // 2) RunContext'ten (act veya currentAct alan/prop)
+        try
+        {
+            if (run != null)
+            {
+                var t = run.GetType();
+                var p = t.GetProperty("act") ?? t.GetProperty("currentAct") ?? t.GetProperty("Act") ?? t.GetProperty("CurrentAct");
+                if (p != null && p.PropertyType == typeof(Act))
+                    return (Act)p.GetValue(run);
+
+                var f = t.GetField("act") ?? t.GetField("currentAct") ?? t.GetField("Act") ?? t.GetField("CurrentAct");
+                if (f != null && f.FieldType == typeof(Act))
+                    return (Act)f.GetValue(run);
+            }
+        }
+        catch { /* yoksay */ }
+
+        // 3) Fallback
+        return currentActFallback;
+    }
+
+    /// <summary>mysteryDbs içinden ACT'e uyanı döndürür; bulunamazsa tekil mysteryDb'ye düşer.</summary>
+    private ActMysteryDatabase ResolveActiveMysteryDb()
+    {
+        var act = CurrentAct;
+
+        if (mysteryDbs != null && mysteryDbs.Length > 0)
+        {
+            // Birebir ACT eşleşmesi
+            var exact = mysteryDbs.FirstOrDefault(db => db != null && db.act == act);
+            if (exact != null) return exact;
+
+            // Hiçbiri eşleşmezse ilk geçerli DB'ye düş (uyarı ver)
+            var firstValid = mysteryDbs.FirstOrDefault(db => db != null);
+            if (firstValid != null)
+            {
+                Debug.LogWarning($"[GSD] Act '{act}' için uygun ActMysteryDatabase bulunamadı. İlk geçerli DB kullanılacak: {firstValid.name}");
+                return firstValid;
+            }
+        }
+
+        // Dizi yoksa/boşsa eski tekil alanı kullan (geri uyumluluk)
+        if (mysteryDb != null)
+        {
+            Debug.LogWarning("[GSD] mysteryDbs boş; geri uyumluluk için tekil 'mysteryDb' kullanılacak.");
+            return mysteryDb;
+        }
+
+        Debug.LogWarning("[GSD] Hiçbir ActMysteryDatabase atanmadı.");
+        return null;
     }
 }

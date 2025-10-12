@@ -19,7 +19,7 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
     [SerializeField] private Button stake100Btn;
 
     [Header("Targets (3 cups)")]
-    [SerializeField] private Button[] targetButtons = new Button[3];    // 3 adet
+    [SerializeField] private Button[] targetButtons = new Button[3];          // 3 adet
     [SerializeField] private Transform[] targetTransforms = new Transform[3]; // aynı sırada
 
     [Header("UI")]
@@ -34,21 +34,25 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
     [Header("Rules")]
     [SerializeField, Tooltip("Minimum bahis (coin)")] private int minStake = 1;
 
+    [Header("Debug")]
+    [SerializeField] private bool debugLogs = false;
+
+    // Runtime
     private MysteryContext ctx;
     private GameSessionDirector gsd;
     private PlayerWallet playerWallet;
 
-    private int stake;               // seçilen bahis coins
+    private int stake;               // seçilen bahis (coins)
     private int winningIndex = -1;   // 0..2 arası
     private Vector3[] initialPositions;
     private bool inputLocked = false;
 
-    // --- SCENE AUTO-WIRING ---------------------------------------------------
+    // -------------------------------------------------------------
+    // Lifecycle
     private void Awake()
     {
-        // Bu iki satır EKLENDİ: sahne açılır açılmaz referansları al
         gsd = GameSessionDirector.Instance;
-        playerWallet = PlayerWallet.Instance;
+        playerWallet = GetWallet();
 
         if (autoWireOnAwake)
         {
@@ -56,59 +60,131 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
             SafeWireButtonListeners();
             CacheInitialPositions();
 
-            // Cüzdanı göster (Init beklemeden)
-            int wallet = playerWallet ? playerWallet.GetCoins() : 0;
             SetTargetsInteractable(false);
-            UpdateWalletAndStakeText(wallet);
+            UpdateWalletAndStakeText(GetWalletCoins());
             infoText?.SetText("Choose your bet: 25% / 50% / 100%");
         }
     }
+
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        // Editörde sahnede düzenleme yaparken önizleme için hafif auto-wire (play değilken)
         if (!Application.isPlaying && autoWireOnAwake)
-        {
             TryAutoWireSceneObjects();
-        }
     }
 #endif
 
     private void OnDestroy()
     {
-        // Sahne değişimlerinde/yeniden yüklemede çift dinleyiciyi engelle
         SafeUnwireButtonListeners();
     }
 
+    // Mystery entrypoint
+    public void Init(MysteryContext ctx)
+    {
+        this.ctx = ctx;
+        this.gsd = GameSessionDirector.Instance;
+        this.playerWallet = GetWallet();
+
+        SetTargetsInteractable(false);
+        UpdateWalletAndStakeText(GetWalletCoins());
+        infoText?.SetText("Choose your bet: 25% / 50% / 100%");
+    }
+
+    // -------------------------------------------------------------
+    // Wallet helpers
+    private PlayerWallet GetWallet()
+    {
+        // Önce Singleton
+        if (PlayerWallet.Instance != null)
+        {
+            playerWallet = PlayerWallet.Instance;
+            return playerWallet;
+        }
+
+        // Singleton yoksa sahnede ara
+        var all = FindObjectsOfType<PlayerWallet>(true);
+        if (all.Length == 0)
+            return null;
+
+        if (all.Length > 1)
+        {
+            // DDOL sahnesindeki varsa onu tercih et
+            var ddol = all.FirstOrDefault(w => w.gameObject.scene.name == "DontDestroyOnLoad");
+            playerWallet = ddol ?? all[0];
+            if (debugLogs)
+                Debug.LogWarning($"[ShellGame] Birden fazla PlayerWallet bulundu ({all.Length}). " +
+                                 $"Kullanılan='{playerWallet.gameObject.name}' (scene={playerWallet.gameObject.scene.name}). Tekilleştirmen önerilir.");
+            return playerWallet;
+        }
+
+        playerWallet = all[0];
+        if (debugLogs)
+            Debug.LogWarning($"[ShellGame] PlayerWallet.Instance yoktu; sahneden '{playerWallet.gameObject.name}' kullanılıyor.");
+        return playerWallet;
+    }
+
+    private int GetWalletCoins()
+    {
+        var w = GetWallet();
+        return w != null ? w.GetCoins() : 0;
+    }
+
+    private bool TrySpend(int amount, string reason)
+    {
+        var w = GetWallet();
+        if (w == null) { infoText?.SetText("Wallet not ready."); return false; }
+        int before = w.GetCoins();
+        if (before < amount)
+        {
+            if (debugLogs) Debug.LogWarning($"[ShellGame] TrySpend({amount}) YETERSİZ. before={before}. reason={reason}");
+            return false;
+        }
+        w.AddCoins(-amount);
+        int after = w.GetCoins();
+        if (debugLogs) Debug.Log($"[ShellGame] Spend {amount} reason={reason} {before}->{after}");
+        UpdateWalletAndStakeText(after);
+        return true;
+    }
+
+    private void Payout(int amount, string reason)
+    {
+        var w = GetWallet();
+        if (w == null) { infoText?.SetText("Wallet not ready."); return; }
+        int before = w.GetCoins();
+        w.AddCoins(amount);
+        int after = w.GetCoins();
+        if (debugLogs) Debug.Log($"[ShellGame] Payout {amount} reason={reason} {before}->{after}");
+        UpdateWalletAndStakeText(after);
+    }
+
+    // -------------------------------------------------------------
+    // UI wiring
     private void TryAutoWireSceneObjects()
     {
-        // Kökler boşsa tüm sahnede arayacağız
-        if (!uiRoot)   uiRoot   = transform;   // en azından kendi altında ara
+        if (!uiRoot)   uiRoot   = transform;
         if (!cupsRoot) cupsRoot = transform;
 
-        // --- Stake Buttons ---
-        if (!stake25Btn)  stake25Btn  = FindIn(uiRoot, "Stake25", true)?.GetComponent<Button>() ?? FindOfTypeInScene<Button>("Stake25");
-        if (!stake50Btn)  stake50Btn  = FindIn(uiRoot, "Stake50", true)?.GetComponent<Button>() ?? FindOfTypeInScene<Button>("Stake50");
+        // Stake buttons
+        if (!stake25Btn)  stake25Btn  = FindIn(uiRoot, "Stake25", true)?.GetComponent<Button>()  ?? FindOfTypeInScene<Button>("Stake25");
+        if (!stake50Btn)  stake50Btn  = FindIn(uiRoot, "Stake50", true)?.GetComponent<Button>()  ?? FindOfTypeInScene<Button>("Stake50");
         if (!stake100Btn) stake100Btn = FindIn(uiRoot, "Stake100", true)?.GetComponent<Button>() ?? FindOfTypeInScene<Button>("Stake100");
 
-        // --- UI Texts ---
+        // UI Texts
         if (!infoText)  infoText  = (FindIn(uiRoot, "InfoText", true)?.GetComponent<TMP_Text>())  ?? FindOfTypeInScene<TMP_Text>("InfoText");
         if (!stakeText) stakeText = (FindIn(uiRoot, "StakeText", true)?.GetComponent<TMP_Text>()) ?? FindOfTypeInScene<TMP_Text>("StakeText");
 
-        // --- Cups / Targets ---
-        // Eğer hedef dizileri boş ya da eksikse, cupsRoot altındaki ilk 3 Button/Transform’u topla
+        // Cups / Targets
         if (targetButtons == null || targetButtons.Length != 3 || targetButtons.Any(b => b == null))
         {
             var btns = (cupsRoot ? cupsRoot.GetComponentsInChildren<Button>(true) : FindObjectsOfType<Button>(true))
                         .Where(b => b.name.ToLower().Contains("cup") || b.name.ToLower().Contains("target"))
-                        .Take(3)
-                        .ToArray();
+                        .Take(3).ToArray();
             if (btns.Length == 3) targetButtons = btns;
         }
 
         if (targetTransforms == null || targetTransforms.Length != 3 || targetTransforms.Any(t => t == null))
         {
-            // Transform’ları butonların transform’larından türet
             if (targetButtons != null && targetButtons.Length == 3 && targetButtons.All(b => b != null))
                 targetTransforms = targetButtons.Select(b => b.transform).ToArray();
         }
@@ -132,15 +208,12 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
 
     private void SafeWireButtonListeners()
     {
-        // Önce sil
         SafeUnwireButtonListeners();
 
-        // Stake buttons
         if (stake25Btn)  stake25Btn.onClick.AddListener(() => SelectStake(0.25f));
         if (stake50Btn)  stake50Btn.onClick.AddListener(() => SelectStake(0.50f));
         if (stake100Btn) stake100Btn.onClick.AddListener(() => SelectStake(1.00f));
 
-        // Cup pick
         if (targetButtons != null)
         {
             for (int i = 0; i < targetButtons.Length; i++)
@@ -173,45 +246,44 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
             if (targetTransforms[i])
                 initialPositions[i] = targetTransforms[i].position;
     }
-    // ------------------------------------------------------------------------
 
-    public void Init(MysteryContext ctx)
-    {
-        this.ctx = ctx;
-        // YİNE de burada güncelle (runtime’da sahne değişmiş olabilir)
-        this.gsd = GameSessionDirector.Instance;
-        this.playerWallet = PlayerWallet.Instance;
-
-        SetTargetsInteractable(false);
-        UpdateWalletAndStakeText(playerWallet ? playerWallet.GetCoins() : 0);
-        infoText?.SetText("Choose your bet: 25% / 50% / 100%");
-    }
-
+    // -------------------------------------------------------------
+    // Game flow
     private void SelectStake(float fraction)
     {
         if (inputLocked) return;
 
-        // Emniyet: Init çağrılmasa bile çalışsın
-        if (playerWallet == null) playerWallet = PlayerWallet.Instance;
-
-        if (playerWallet == null)
+        if (GetWallet() == null)
         {
-            Debug.LogWarning("[Mystery_ShellGame] PlayerWallet bulunamadı.");
+            if (debugLogs) Debug.LogWarning("[ShellGame] PlayerWallet bulunamadı.");
             infoText?.SetText("Wallet not ready.");
             return;
         }
 
-        int wallet = playerWallet.GetCoins();
-        int desired = Mathf.FloorToInt(wallet * fraction);
+        int walletBefore = GetWalletCoins();
+        int desired = Mathf.FloorToInt(walletBefore * fraction);
+
         if (desired < minStake)
         {
-            infoText?.SetText($"Minimum stake is {minStake}. Your balance: {wallet}");
+            infoText?.SetText($"Minimum stake is {minStake}. Your balance: {walletBefore}");
+            return;
+        }
+
+        // Harcama başarısızsa devam etme
+        if (!TrySpend(desired, "bet placed"))
+        {
+            infoText?.SetText($"Not enough coins to bet {desired}.");
             return;
         }
 
         stake = desired;
-        UpdateWalletAndStakeText(wallet);
 
+        // Kilitle & shuffle
+        inputLocked = true;
+        SetStakeButtonsInteractable(false);
+        SetTargetsInteractable(false);
+
+        infoText?.SetText($"Bet placed: -{stake}. Shuffling...");
         StartCoroutine(ShuffleRoutine());
     }
 
@@ -219,27 +291,21 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
     {
         inputLocked = true;
 
-        // Hedefleri kilitle & bahis butonlarını kilitle
         SetTargetsInteractable(false);
         SetStakeButtonsInteractable(false);
-
         infoText?.SetText("Shuffling...");
 
         // Kazanan bardağı seç (0..2)
-        winningIndex = ctx != null && ctx.rng != null ? ctx.rng.Next(0, 3) : Random.Range(0, 3);
+        winningIndex = (ctx != null && ctx.rng != null) ? ctx.rng.Next(0, 3) : Random.Range(0, 3);
 
-        // Karıştırma
-        int swaps = Mathf.Max(1, shuffleSwaps);
-
-        // Çalışma kopyaları
+        // Güvenlik
         if (targetTransforms == null || targetTransforms.Length < 3)
         {
             Debug.LogWarning("[Mystery_ShellGame] targetTransforms eksik.");
             yield break;
         }
 
-        Vector3[] pos = new Vector3[targetTransforms.Length];
-        for (int i = 0; i < pos.Length; i++) pos[i] = targetTransforms[i].position;
+        int swaps = Mathf.Max(1, shuffleSwaps);
 
         for (int s = 0; s < swaps; s++)
         {
@@ -247,11 +313,9 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
             int b;
             do { b = (ctx != null && ctx.rng != null) ? ctx.rng.Next(0, 3) : Random.Range(0, 3); } while (b == a);
 
-            // winningIndex swap'tan etkilenir:
             if (winningIndex == a) winningIndex = b;
             else if (winningIndex == b) winningIndex = a;
 
-            // Basit lerp animasyonu
             Vector3 startA = targetTransforms[a].position;
             Vector3 startB = targetTransforms[b].position;
             float t = 0f;
@@ -264,12 +328,10 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
                 yield return null;
             }
 
-            // Son konumları netle
             targetTransforms[a].position = startB;
             targetTransforms[b].position = startA;
         }
 
-        // Shuffle bitti -> hedefler aç
         infoText?.SetText("Pick a cup!");
         SetTargetsInteractable(true);
         inputLocked = false;
@@ -287,22 +349,26 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
 
         if (win)
         {
-            // Kazanç: net +stake (1:1 oran)
-            infoText?.SetText($"You WIN! +{stake} coins");
-            ctx?.CompleteCoins(stake);
+            // Başta -stake düşmüştük; şimdi 2x öde (net +stake)
+            Payout(stake * 2, "win payout (2x)");
+            infoText?.SetText($"You WIN! payout +{stake * 2} (profit +{stake})");
+            ctx?.CompleteNothing();
         }
         else
         {
-            // Kayıp: anında düş
-            infoText?.SetText($"You LOSE! -{stake} coins");
-            if (playerWallet != null) playerWallet.AddCoins(-stake);
+            infoText?.SetText($"You LOSE! (lost {stake})");
             ctx?.CompleteNothing();
         }
 
-        // Sonraki tur için (istersen) stake’i sıfırlayabilirsin:
-        // stake = 0; UpdateWalletAndStakeText(playerWallet ? playerWallet.GetCoins() : 0);
+        UpdateWalletAndStakeText(GetWalletCoins());
+        stake = 0;
+        inputLocked = false;
+        SetStakeButtonsInteractable(true);
+        infoText?.SetText("Choose your bet: 25% / 50% / 100%");
     }
 
+    // -------------------------------------------------------------
+    // UI yardımcıları
     private void SetStakeButtonsInteractable(bool v)
     {
         if (stake25Btn)  stake25Btn.interactable  = v;
@@ -319,11 +385,7 @@ public class Mystery_ShellGame : MonoBehaviour, IMystery
 
     private void UpdateWalletAndStakeText(int wallet)
     {
-        if (stakeText)
-            stakeText.SetText($"Stake: {stake}");
-
-        // gsd kontrolüne gerek yok; direkt göster
-        if (infoText)
-            infoText.SetText($"Balance: {wallet} — pick your bet (25/50/100)");
+        if (stakeText) stakeText.SetText($"Stake: {stake}");
+        if (infoText)  infoText.SetText($"Balance: {wallet} — pick your bet (25/50/100)");
     }
 }

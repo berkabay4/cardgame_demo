@@ -4,7 +4,9 @@ using UnityEngine.Events;
 public class PlayerWallet : MonoBehaviour
 {
     public static PlayerWallet Instance { get; private set; }
-    [System.Serializable] public class IntEvent : UnityEngine.Events.UnityEvent<int> {}
+
+    [System.Serializable]
+    public class IntEvent : UnityEngine.Events.UnityEvent<int> {}
 
     [SerializeField, Min(0)] private int coins;
     public IntEvent onCoinsChanged;
@@ -14,6 +16,9 @@ public class PlayerWallet : MonoBehaviour
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        // Event null güvenliği
+        if (onCoinsChanged == null) onCoinsChanged = new IntEvent();
     }
 
     void Start()
@@ -30,10 +35,12 @@ public class PlayerWallet : MonoBehaviour
             onCoinsChanged?.Invoke(coins);
     }
 #endif
+
     public void InitFromPlayerData(PlayerData data)
     {
         SetCoins(data != null ? data.startingCoins : 0);
     }
+
     public int GetCoins() => coins;
 
     public void SetCoins(int value)
@@ -44,7 +51,12 @@ public class PlayerWallet : MonoBehaviour
         onCoinsChanged?.Invoke(coins);
     }
 
-    public void AddCoins(int delta) => SetCoins(coins + Mathf.Max(0, delta));
+    // NEGATİF/POSİTİF delta destekler (kritik değişiklik)
+    public void AddCoins(int delta)
+    {
+        if (delta == 0) return;
+        SetCoins(coins + delta); // SetCoins 0 altına düşürmez
+    }
 
     public bool SpendCoins(int cost)
     {

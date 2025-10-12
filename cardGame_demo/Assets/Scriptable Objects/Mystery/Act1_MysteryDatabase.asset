@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f6bb10899b90cb34f9009ad0a950b69f, type: 3}
-  m_Name: New Act Mystery Database
+  m_Name: Act1_MysteryDatabase
   m_EditorClassIdentifier: Assembly-CSharp::ActMysteryDatabase
   act: 1
   mysteries:
