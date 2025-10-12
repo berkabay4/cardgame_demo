@@ -23,15 +23,39 @@ public class RestSiteManager : MonoBehaviour
 
     void Awake()
     {
-        _player    = Player.Instance ?? FindFirstObjectByType<Player>(FindObjectsInactive.Include);
+        _player = Player.Instance ?? FindFirstObjectByType<Player>(FindObjectsInactive.Include);
         if (_player == null) { Debug.LogError("[RestScene] Player bulunamadı."); return; }
 
-        _health    = _player.Health;
+        _health = _player.Health;
+
+        // 1) Önce Player'dan referans
         _deckOwner = _player.DeckOwner;
+
+        // 2) Yoksa sahnede ara
+        if (_deckOwner == null)
+            _deckOwner = _player.GetComponentInChildren<DeckOwner>(true);
+
+        // 3) Hâlâ yoksa ekle ve deck oluştur
+        if (_deckOwner == null)
+        {
+            _deckOwner = _player.gameObject.AddComponent<DeckOwner>();
+            Debug.LogWarning("[RestScene] Player'da DeckOwner yoktu, runtime eklendi.");
+        }
+
+        // 4) Deck yoksa oluştur (en azından Joker'i bir yere ekleyebilelim)
+        if ((_deckOwner.Deck as IDeckService) == null)
+        {
+            // DeckOwner API'n hangisiyse ona göre:
+            // A) Eğer CreateNewDeck varsa:
+            _deckOwner.CreateNewDeck(seed: null);
+
+            // B) Eğer yoksa manuel:
+            // var ds = new DeckService();
+            // _deckOwner.SetDeck(ds);
+        }
 
         if (mapBtn) mapBtn.gameObject.SetActive(false);
     }
-
     void Start()
     {
         if (healMissing50Btn) healMissing50Btn.onClick.AddListener(OnHealMissing50);
@@ -75,15 +99,35 @@ public class RestSiteManager : MonoBehaviour
         LockChoice();
     }
 
-    public void OnAddJoker()
+public void OnAddJoker()
+{
+    if (_choiceLocked) return;
+
+    // 1) AdditionalDeck’e yaz (kalıcı)
+    var combatantDeck = _player ? _player.GetComponentInChildren<CombatantDeck>(true) : null;
+    if (combatantDeck != null)
+        combatantDeck.AddJokerToAdditional(1);
+
+    // 2) Varsa mevcut runtime deck’e de ekle (hemen elde edilsin istersen)
+    bool addedRuntime = false;
+    if (_deckOwner != null)
     {
-        if (_choiceLocked || _deckOwner == null) return;
+        // Deck yoksa oluştur
+        if ((_deckOwner.Deck as IDeckService) == null)
+            _deckOwner.CreateNewDeck(seed: null);
 
-        bool added = _deckOwner.AddJoker(); // CardDatabase yok; direkt Joker üretip ekliyoruz.
-        SetInfo(added ? "Destene 1 adet Joker eklendi." : "Joker eklenemedi (kapasite dolu olabilir).");
-
-        LockChoice();
+        addedRuntime = _deckOwner.AddJoker();
     }
+
+    // Bilgi
+    if (combatantDeck != null || addedRuntime)
+        SetInfo("Destene 1 adet Joker eklendi.");
+    else
+        SetInfo("Joker eklenemedi (DeckOwner/CombatantDeck bulunamadı).");
+
+    LockChoice();
+}
+
 
     private void OnGoMap()
     {
