@@ -33,8 +33,9 @@ public class MiniBossRuntime : MonoBehaviour
 
     /// <summary>
     /// Enemy attack fazı için çağrılır.
-    /// baseAttackValue: Bu elde enemy ATK fazının toplamı (örn: 5/20 çektiyse 5).
-    /// attackRoundIndex: Kaçıncı enemy saldırı turu (1,2,3,...) — pattern için kullanılır.
+    /// NOT: Asıl pattern'li saldırı artık ResolutionController içinde
+    /// MiniBossAttackBehaviour.ExecuteAttackCoroutine üzerinden çalışıyor.
+    /// Bu metot şu an sadece Fallback amaçlı.
     /// </summary>
     public void TakeTurn(CombatContext ctx, int baseAttackValue, int attackRoundIndex)
     {
@@ -44,20 +45,15 @@ public class MiniBossRuntime : MonoBehaviour
             return;
         }
 
-        if (definition != null && definition.attackBehaviour != null)
-        {
-            definition.attackBehaviour.ExecuteAttack(ctx, this, baseAttackValue, attackRoundIndex);
-        }
-        else
-        {
-            // Fallback: davranış yoksa tek vuruş yap
-            int dmg = baseAttackValue > 0
-                ? baseAttackValue
-                : (definition != null ? definition.attackDamageRange.RollInclusive() : 5);
+        // Şu an için behaviour üzerinden gitmiyoruz (coroutine API kullanılıyor).
+        // Burada sadece basit bir fallback bırakıyoruz.
 
-            DealDamageToPlayer(ctx, dmg);
-            Debug.Log($"[MiniBossRuntime] {name} fallback attack → {dmg} damage.");
-        }
+        int dmg = baseAttackValue > 0
+            ? baseAttackValue
+            : (definition != null ? definition.attackDamageRange.RollInclusive() : 5);
+
+        DealDamageToPlayer(ctx, dmg);
+        Debug.Log($"[MiniBossRuntime] {name} fallback attack → {dmg} damage. (TakeTurn)");
     }
 
     /// <summary>Mini boss hasar aldığında çağır (örn. Resolution tarafı).</summary>

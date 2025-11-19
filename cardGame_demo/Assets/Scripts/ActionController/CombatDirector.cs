@@ -92,7 +92,9 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?
 
     // === MiniBoss pattern state ===
-    /// <summary>Combat boyunca kaçıncı enemy attack turu (1,2,3,...).</summary>
+
+    /// <summary>Kaçıncı enemy saldırı eli (1,2,3,...). Sadece EnemyAtk resolve edildiğinde artar.</summary>
+    public int EnemyAttackRoundIndex { get; private set; }    
     int _enemyAttackRoundIndex = 0;
 
     // === ICoroutineHost ===
@@ -242,6 +244,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     {
         Log("[Director] Resetting combat state...");
 
+        EnemyAttackRoundIndex = 0;
         // yeni BattleState ve ActionQueue
         State = new BattleState();
         Queue = new ActionQueue();
@@ -411,6 +414,10 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public void StartNewTurn()
     {
         if (!_isGameStarted) return;
+
+        // Yeni elde miniboss round counter sıfırlansın
+        EnemyAttackRoundIndex = 0;
+
         onRoundStarted?.Invoke();
 
         RelicManager.Instance?.OnTurnStart();
@@ -422,7 +429,15 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         if (_enemy.Running != null) StopCoroutine(_enemy.Running);
         _enemy.Running = StartCoroutine(_enemy.PrecomputeBothPhasesThen(() => BeginPhase(TurnStep.PlayerDef)));
     }
-
+    /// <summary>
+    /// Enemy saldırı eli sayacını 1 arttırır ve yeni değeri döner.
+    /// (MiniBoss pattern’leri için kullanılıyor.)
+    /// </summary>
+    public int NextEnemyAttackRound()
+    {
+        EnemyAttackRoundIndex++;
+        return EnemyAttackRoundIndex;
+    }
     public void SetPlayerPhaseThresholds(int atk, int def)
     {
         if (Ctx == null) return;
@@ -512,13 +527,17 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         // Bu, kaçıncı enemy saldırı turu?
         _enemyAttackRoundIndex++;
 
-        // total: o elde enemy ATK fazının kart toplamı (ör: 10/20 → 10)
-        mini.Definition.attackBehaviour.ExecuteAttack(
-            Ctx,
-            mini,
-            total,                 // baseAttackValue
-            _enemyAttackRoundIndex // attackRoundIndex
+        // IMPORTANT:
+        // Asıl saldırı artık ResolutionController.ResolveRoundAndRestart içinde
+        // MiniBossAttackBehaviour.ExecuteAttackCoroutine ile yapılıyor.
+        // Burada sadece round index'i ve total'i takip ediyoruz.
+        CombatDirector.Instance.Log(
+            $"[MiniBoss] Enemy ATK phase ended. baseATK={total}, roundIndex={_enemyAttackRoundIndex}"
         );
+
+        // Eğer ileride behaviour'ın faz bittiğinde state güncellemesi
+        // yapması gerekirse, buradan "bilgi" amaçlı bir callback ekleyebilirsin;
+        // ama direkt damage/animasyon burada çağrılmamalı.
     }
 
     // === helpers ===
