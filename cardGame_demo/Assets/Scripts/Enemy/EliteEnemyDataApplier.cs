@@ -19,7 +19,19 @@ public static class EliteEnemyDataApplier
             Debug.LogWarning("[EliteEnemyDataApplier] Apply çağrıldı ama def veya go null.");
             return;
         }
+        // Set maximum HP
+        SimpleCombatant simpleCombatant = go.GetComponent<SimpleCombatant>();
+        if (simpleCombatant != null)
+        {
+             var hm = simpleCombatant.GetComponentInChildren<HealthManager>(true) ?? simpleCombatant.GetComponent<HealthManager>();
+            if (!hm) hm = simpleCombatant.gameObject.AddComponent<HealthManager>();
 
+            int newMax = Mathf.Max(1, def.maxHealth);
+            hm.SetMaxHP(newMax, keepRatio: false); // oranı koruma, direkt yeni max'a geç
+            hm.RefillToMax();                      // CurrentHP = MaxHP
+            hm.SetBlock(0);                        // başlangıçta block temiz (opsiyonel)
+
+        }
         // 1) MiniBossRuntime init
         var mini = go.GetComponent<MiniBossRuntime>();
         if (mini != null)

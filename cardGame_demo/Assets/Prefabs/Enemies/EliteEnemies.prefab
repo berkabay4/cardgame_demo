@@ -619,6 +619,7 @@ GameObject:
   - component: {fileID: 8830286263138758337}
   - component: {fileID: -4672133133476110376}
   - component: {fileID: -8046813441261384839}
+  - component: {fileID: 5827393915876975678}
   m_Layer: 0
   m_Name: EliteEnemies
   m_TagString: Enemy
@@ -803,6 +804,19 @@ MonoBehaviour:
   deckData: {fileID: 11400000, guid: 56f52b60db797394a9ec71bff4e5e9eb, type: 2}
   additionalDeck: []
   shuffleOnStart: 1
+--- !u!114 &5827393915876975678
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7984944881641689443}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1fb9043269c909142b87aa80e25f93ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MiniBossRuntime
+  definition: {fileID: 11400000, guid: be4e5aea86d248a40a289867201833e1, type: 2}
 --- !u!1 &8605238606599505194
 GameObject:
   m_ObjectHideFlags: 0

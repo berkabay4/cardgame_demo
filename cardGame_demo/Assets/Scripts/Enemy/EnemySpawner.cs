@@ -300,14 +300,16 @@ public class EnemySpawner : MonoBehaviour
                 case Map.NodeType.EliteEnemy:
                     return EncounterEnemyType.EliteMiniBoss;
 
-                // istersen boss, event vs. için extra case'ler eklersin
+                    // istersen boss, event vs. için extra case'ler eklersin
             }
         }
+        else
+        Debug.LogError("[EnemySpawner] RunContext veya pendingEncounter null iken ResolveEncounterType çağrıldı.");
 
-        // Fallback:
-        // - Test ederken Inspector'dan encounterType seçebil diye
-        // - Ya da nodeType tanınmazsa
-        return encounterType;
+            // Fallback:
+            // - Test ederken Inspector'dan encounterType seçebil diye
+            // - Ya da nodeType tanınmazsa
+            return encounterType;
     }
 
     GameObject SpawnMinorFromData(Transform point, EnemyData data)
