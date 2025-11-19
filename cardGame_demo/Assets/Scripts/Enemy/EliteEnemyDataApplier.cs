@@ -32,7 +32,7 @@ public static class EliteEnemyDataApplier
             hm.SetBlock(0);                        // başlangıçta block temiz (opsiyonel)
 
         }
-        // 1) MiniBossRuntime init
+
         var mini = go.GetComponent<MiniBossRuntime>();
         if (mini != null)
         {
