@@ -262,6 +262,32 @@ public class CombatContext
 
         OnLog?.Invoke($"[Ctx] (stub) DealDamageToPlayer({amount}) called for {player.name}, implement damage logic here.");
     }
+    public void DealDirectDamage(Actor targetActor, int amount)
+    {
+        if (amount <= 0) return;
+
+        if (!TryGetUnit(targetActor, out var unit) || unit == null)
+        {
+            OnLog?.Invoke($"[Ctx] DealDirectDamage: unit not found for {targetActor}");
+            return;
+        }
+
+        var hm = unit.GetComponentInChildren<HealthManager>();
+        if (hm == null)
+        {
+            OnLog?.Invoke($"[Ctx] DealDirectDamage: HealthManager not found on {unit.name}");
+            return;
+        }
+
+        hm.TakeDamage(amount);
+        OnLog?.Invoke($"[Ctx] {targetActor} took {amount} dmg → HP:{hm.CurrentHP}/{hm.MaxHP}");
+    }
+
+    public void DealDirectDamageToPlayer(int amount)
+        => DealDirectDamage(Actor.Player, amount);
+
+    public void DealDirectDamageToEnemy(int amount)
+        => DealDirectDamage(Actor.Enemy, amount);
     public IEnumerable<IDeckService> AllDecks()
     {
         foreach (var d in _decksByUnit.Values)

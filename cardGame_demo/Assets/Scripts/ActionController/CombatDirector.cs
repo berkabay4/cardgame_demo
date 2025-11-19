@@ -90,6 +90,11 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 
     bool _isGameStarted;
     bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?
+
+    // === MiniBoss pattern state ===
+    /// <summary>Combat boyunca kaçıncı enemy attack turu (1,2,3,...).</summary>
+    int _enemyAttackRoundIndex = 0;
+
     // === ICoroutineHost ===
     public Coroutine Run(IEnumerator routine) => StartCoroutine(routine);
 
@@ -209,6 +214,9 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         _systemsReady = true;
         ContextReady?.Invoke();
 
+        // MiniBoss saldırı patternleri için enemy phase event'ine bağlan
+        onEnemyPhaseEnded.AddListener(HandleEnemyPhaseEndedForMiniBoss);
+
         // Log: başlangıç deste boyutları
         onLog?.Invoke($"[Decks] PlayerDeck={Ctx.GetDeckFor(Actor.Player)?.Count ?? 0} | EnemyDecks={enemies.Count}");
     }
@@ -260,6 +268,9 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 
         // Round state reset
         State.ResetForNewTurn();
+
+        // MiniBoss saldırı tur sayacını sıfırla
+        _enemyAttackRoundIndex = 0;
 
         Log("[Director] Combat state reset complete.");
     }
@@ -328,6 +339,10 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public void StartGame()
     {
         if (_isGameStarted) return;
+
+        // Yeni combat başlarken miniboss saldırı tur sayacını sıfırla
+        _enemyAttackRoundIndex = 0;
+
         _isGameStarted = true;
         onGameStarted?.Invoke();
         StartNewTurn();
@@ -481,6 +496,29 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public void ResolveNow()
     {
         Run(_resolution.ResolveRoundAndRestart());
+    }
+
+    // === MiniBoss pattern handler ===
+    void HandleEnemyPhaseEndedForMiniBoss(SimpleCombatant enemy, PhaseKind phase, int total)
+    {
+        // Sadece enemy ATK fazı bittiğinde ilgileniyoruz
+        if (phase != PhaseKind.Attack) return;
+        if (enemy == null || Ctx == null) return;
+
+        var mini = enemy.GetComponent<MiniBossRuntime>();
+        if (mini == null || mini.Definition == null || mini.Definition.attackBehaviour == null)
+            return; // normal enemy → pattern yok
+
+        // Bu, kaçıncı enemy saldırı turu?
+        _enemyAttackRoundIndex++;
+
+        // total: o elde enemy ATK fazının kart toplamı (ör: 10/20 → 10)
+        mini.Definition.attackBehaviour.ExecuteAttack(
+            Ctx,
+            mini,
+            total,                 // baseAttackValue
+            _enemyAttackRoundIndex // attackRoundIndex
+        );
     }
 
     // === helpers ===
