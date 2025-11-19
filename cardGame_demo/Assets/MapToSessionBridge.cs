@@ -27,7 +27,9 @@ public class MapToSessionBridge : MonoBehaviour
             case Map.NodeType.MinorEnemy:
                 GameSessionDirector.Instance.StartMinorEncounter(node);
                 break;
-
+            case Map.NodeType.EliteEnemy:
+                GameSessionDirector.Instance.StartMinorEncounter(node);
+                break;
             case Map.NodeType.Treasure:
                 GameSessionDirector.Instance.StartTreasure(node);
                 break;

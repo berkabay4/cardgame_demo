@@ -99,34 +99,34 @@ public class RestSiteManager : MonoBehaviour
         LockChoice();
     }
 
-public void OnAddJoker()
-{
-    if (_choiceLocked) return;
-
-    // 1) AdditionalDeck’e yaz (kalıcı)
-    var combatantDeck = _player ? _player.GetComponentInChildren<CombatantDeck>(true) : null;
-    if (combatantDeck != null)
-        combatantDeck.AddJokerToAdditional(1);
-
-    // 2) Varsa mevcut runtime deck’e de ekle (hemen elde edilsin istersen)
-    bool addedRuntime = false;
-    if (_deckOwner != null)
+    public void OnAddJoker()
     {
-        // Deck yoksa oluştur
-        if ((_deckOwner.Deck as IDeckService) == null)
-            _deckOwner.CreateNewDeck(seed: null);
+        if (_choiceLocked) return;
 
-        addedRuntime = _deckOwner.AddJoker();
+        // 1) AdditionalDeck’e yaz (kalıcı)
+        var combatantDeck = _player ? _player.GetComponentInChildren<CombatantDeck>(true) : null;
+        if (combatantDeck != null)
+            combatantDeck.AddJokerToAdditional(1);
+
+        // 2) Varsa mevcut runtime deck’e de ekle (hemen elde edilsin istersen)
+        bool addedRuntime = false;
+        if (_deckOwner != null)
+        {
+            // Deck yoksa oluştur
+            if ((_deckOwner.Deck as IDeckService) == null)
+                _deckOwner.CreateNewDeck(seed: null);
+
+            addedRuntime = _deckOwner.AddJoker();
+        }
+
+        // Bilgi
+        if (combatantDeck != null || addedRuntime)
+            SetInfo("Destene 1 adet Joker eklendi.");
+        else
+            SetInfo("Joker eklenemedi (DeckOwner/CombatantDeck bulunamadı).");
+
+        LockChoice();
     }
-
-    // Bilgi
-    if (combatantDeck != null || addedRuntime)
-        SetInfo("Destene 1 adet Joker eklendi.");
-    else
-        SetInfo("Joker eklenemedi (DeckOwner/CombatantDeck bulunamadı).");
-
-    LockChoice();
-}
 
 
     private void OnGoMap()

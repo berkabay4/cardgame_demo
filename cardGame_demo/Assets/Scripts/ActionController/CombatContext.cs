@@ -239,7 +239,29 @@ public class CombatContext
         if (!TryGetUnit(actor, out var unit) || unit == null) return false;
         return _decksByUnit.TryGetValue(unit, out deck) && deck != null;
     }
+    // ======================================================
+    // ================== Damage Helpers ====================
+    // ======================================================
+    /// <summary>
+    /// MiniBoss gibi sistemlerden Player'a direkt damage vurmak için sugar helper.
+    /// Buradaki 'TakeDamage' kısmını kendi SimpleCombatant API'ne göre düzelt.
+    /// </summary>
+    public void DealDamageToPlayer(int amount)
+    {
+        var player = Player;
+        if (player == null)
+        {
+            OnLog?.Invoke("[Ctx] DealDamageToPlayer called but Player unit is null.");
+            return;
+        }
 
+        // TODO: SimpleCombatant'ta hangi metod varsa onu kullan:
+        // Örnek: player.TakeDamage(amount);
+        // veya    player.ApplyDamage(amount);
+        // veya    player.Health.Change(-amount);
+
+        OnLog?.Invoke($"[Ctx] (stub) DealDamageToPlayer({amount}) called for {player.name}, implement damage logic here.");
+    }
     public IEnumerable<IDeckService> AllDecks()
     {
         foreach (var d in _decksByUnit.Values)

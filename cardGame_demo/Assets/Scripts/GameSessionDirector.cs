@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Map;
 using System.Linq;
 using System;
+using SingularityGroup.HotReload;
 
 public class GameSessionDirector : MonoBehaviour
 {
@@ -22,17 +23,16 @@ public class GameSessionDirector : MonoBehaviour
     private PlayerWallet wallet;
 
     [SerializeField] int baseMinorCoins = 50;
-    private Act CurrentAct => run != null ? run.currentAct : currentActFallback;
-    // === Mystery (Data-Driven) ===
-    [Header("Mystery (Data-Driven)")]
-    [Tooltip("Mevcut ACT'e göre buradaki listeden uygun DB seçilir.")]
-    [SerializeField] private ActMysteryDatabase[] mysteryDbs;
 
-    [Tooltip("Geri uyumluluk için tekil DB. Dizi boş/uygun yoksa bundan okunur.")]
-    [SerializeField] private ActMysteryDatabase mysteryDb;
+    [Header("Act / Config")]
+    [Tooltip("Her ACT için konfig. Combat + Mystery + Relic vs. burada tutulur.")]
+    [SerializeField] private ActConfig[] actConfigs;
 
     [Tooltip("Act tespit edilemezse kullanılacak yedek değer.")]
     [SerializeField] private Act currentActFallback = Act.Act1;
+
+    // RunContext'ten gelen mevcut ACT (yoksa fallback)
+    private Act CurrentAct => run != null ? run.currentAct : currentActFallback;
 
     public MysteryData CurrentMystery { get; private set; }
     public RunContext Run => run;
@@ -51,14 +51,17 @@ public class GameSessionDirector : MonoBehaviour
         }
     }
 
+    /// <summary>Şu anki ACT için kullanılan ActConfig'i dışarıya açmak istersen bunu kullan.</summary>
+    public ActConfig CurrentActConfig => ResolveCurrentActConfig();
+
     // === TREASURE ===
     public void StartTreasure(Map.MapNode node)
     {
         run.pendingEncounter = new RunContext.EncounterData {
-            mapNode = node,
-            nodeType = node.Node.nodeType,
+            mapNode       = node,
+            nodeType      = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
+            seed          = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
         LoadTreasure();
     }
@@ -83,10 +86,10 @@ public class GameSessionDirector : MonoBehaviour
     public void StartRestSite(Map.MapNode node)
     {
         run.pendingEncounter = new RunContext.EncounterData {
-            mapNode = node,
-            nodeType = node.Node.nodeType,
+            mapNode       = node,
+            nodeType      = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
+            seed          = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
         LoadRestSite();
     }
@@ -127,28 +130,28 @@ public class GameSessionDirector : MonoBehaviour
             seed          = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
 
-        // Geçerli ACT'e uygun DB'yi çöz
-        var db = ResolveActiveMysteryDb();
+        // Geçerli ACT'e uygun ActConfig'i çöz
+        var actConfig = ResolveCurrentActConfig();
 
         // 1) Node’dan Mystery ID çöz (varsayılan kural: blueprint.name)
         string mysteryId = TryGetMysteryIdFromNode(node);
 
-        // 2) DB’den bul / yoksa weighted random
+        // 2) ActConfig içinden bul / yoksa weighted random
         MysteryData picked = null;
         var rng = new System.Random(run.pendingEncounter.seed);
 
-        if (!string.IsNullOrEmpty(mysteryId) && db != null)
-            picked = db.GetById(mysteryId);
+        if (!string.IsNullOrEmpty(mysteryId) && actConfig != null)
+            picked = actConfig.GetMysteryById(mysteryId);
 
-        if (picked == null && db != null)
+        if (picked == null && actConfig != null)
         {
-            if (!db.TryGetRandomMystery(rng, out picked))
+            if (!actConfig.TryGetRandomMystery(rng, out picked))
                 picked = null;
         }
 
         if (picked == null)
         {
-            Debug.LogWarning("[GSD] Uygun Mystery bulunamadı veya DB yok; fallback mysteryScene yükleniyor.");
+            Debug.LogWarning("[GSD] Uygun Mystery bulunamadı veya ActConfig yok; fallback mysteryScene yükleniyor.");
             CurrentMystery = null;
             LoadMystery(); // fallback sahne adı
             return;
@@ -246,11 +249,25 @@ public class GameSessionDirector : MonoBehaviour
     // === MAP → COMBAT ===
     public void StartMinorEncounter(MapNode node)
     {
+        Debug.Log("[GSD] Starting minor encounter...");
         run.pendingEncounter = new RunContext.EncounterData {
-            mapNode = node,
-            nodeType = node.Node.nodeType,
+            mapNode       = node,
+            nodeType      = node.Node.nodeType,
             blueprintName = node.Blueprint ? node.Blueprint.name : null,
-            seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
+            seed          = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
+        };
+        LoadCombat();
+    }
+
+    /// <summary>Elite / mini-boss encounter başlatmak için (Elite node tıklanınca bunu çağır).</summary>
+    public void StartEliteEncounter(MapNode node)
+    {
+        Debug.Log("[GSD] Starting ELITE encounter...");
+        run.pendingEncounter = new RunContext.EncounterData {
+            mapNode       = node,
+            nodeType      = node.Node.nodeType,   // Burada senin Elite node tipin gelecek
+            blueprintName = node.Blueprint ? node.Blueprint.name : null,
+            seed          = UnityEngine.Random.Range(int.MinValue, int.MaxValue),
         };
         LoadCombat();
     }
@@ -280,11 +297,18 @@ public class GameSessionDirector : MonoBehaviour
 
     public void AcceptRewardAndReturnToMap()
     {
+        // 1) Coin ver
         if (run.pendingCoins > 0)
         {
             var w = Wallet;
             if (w != null) w.AddCoins(run.pendingCoins);
             else Debug.LogWarning("[GameSessionDirector] Wallet bulunamadı, ödül kaybedildi!");
+        }
+
+        // 2) Eğer son encounter ELITE ise, ActConfig'ten weighted relic reward dene
+        if (WasLastEncounterElite())
+        {
+            TryGrantEliteRelicReward();
         }
 
         AdvanceMapProgressAfterWin();
@@ -345,74 +369,88 @@ public class GameSessionDirector : MonoBehaviour
         _mapManager.view?.SetLineColors();
     }
 
-    // ====== YENİ KISIM: ACT çöz ve uygun DB'yi seç ======
-
-    /// <summary>Mevcut ACT'i tespit eder: Önce MapManager.CurrentMap.act, sonra RunContext (act/currentAct), en son fallback.</summary>
-    private Act ResolveCurrentAct()
-    {
-        // 1) MapManager.CurrentMap.act (eğer varsa)
-        try
-        {
-            var curMap = _mapManager?.CurrentMap;
-            if (curMap != null)
-            {
-                var mapType = curMap.GetType();
-                var actProp = mapType.GetProperty("act") ?? mapType.GetProperty("Act");
-                if (actProp != null && actProp.PropertyType == typeof(Act))
-                    return (Act)actProp.GetValue(curMap);
-            }
-        }
-        catch { /* yoksay */ }
-
-        // 2) RunContext'ten (act veya currentAct alan/prop)
-        try
-        {
-            if (run != null)
-            {
-                var t = run.GetType();
-                var p = t.GetProperty("act") ?? t.GetProperty("currentAct") ?? t.GetProperty("Act") ?? t.GetProperty("CurrentAct");
-                if (p != null && p.PropertyType == typeof(Act))
-                    return (Act)p.GetValue(run);
-
-                var f = t.GetField("act") ?? t.GetField("currentAct") ?? t.GetField("Act") ?? t.GetField("CurrentAct");
-                if (f != null && f.FieldType == typeof(Act))
-                    return (Act)f.GetValue(run);
-            }
-        }
-        catch { /* yoksay */ }
-
-        // 3) Fallback
-        return currentActFallback;
-    }
-
-    /// <summary>mysteryDbs içinden ACT'e uyanı döndürür; bulunamazsa tekil mysteryDb'ye düşer.</summary>
-    private ActMysteryDatabase ResolveActiveMysteryDb()
+    // ====== ACT'e göre ActConfig çöz ======
+    private ActConfig ResolveCurrentActConfig()
     {
         var act = CurrentAct;
 
-        if (mysteryDbs != null && mysteryDbs.Length > 0)
+        if (actConfigs != null && actConfigs.Length > 0)
         {
-            // Birebir ACT eşleşmesi
-            var exact = mysteryDbs.FirstOrDefault(db => db != null && db.act == act);
+            // 1) Birebir ACT eşleşmesi
+            var exact = actConfigs.FirstOrDefault(c => c != null && c.act == act);
             if (exact != null) return exact;
 
-            // Hiçbiri eşleşmezse ilk geçerli DB'ye düş (uyarı ver)
-            var firstValid = mysteryDbs.FirstOrDefault(db => db != null);
+            // 2) Hiçbiri eşleşmezse ilk geçerli config'e düş (uyarı ver)
+            var firstValid = actConfigs.FirstOrDefault(c => c != null);
             if (firstValid != null)
             {
-                Debug.LogWarning($"[GSD] Act '{act}' için uygun ActMysteryDatabase bulunamadı. İlk geçerli DB kullanılacak: {firstValid.name}");
+                Debug.LogWarning($"[GSD] Act '{act}' için uygun ActConfig bulunamadı. İlk geçerli ActConfig kullanılacak: {firstValid.name}");
                 return firstValid;
             }
         }
 
-        // Dizi yoksa/boşsa eski tekil alanı kullan (geri uyumluluk)
-        if (mysteryDb != null)
+        Debug.LogWarning("[GSD] Hiçbir ActConfig atanmadı.");
+        return null;
+    }
+
+    /// <summary>Şu anki ACT ve pendingEncounter.seed'e göre random mini boss definition döner (ActConfig üzerinden).</summary>
+    public MiniBossDefinition GetRandomMiniBossForCurrentAct()
+    {
+        if (run == null || run.pendingEncounter == null)
+            return null;
+
+        var actConfig = ResolveCurrentActConfig();
+        if (actConfig == null)
+            return null;
+
+        var rng = new System.Random(run.pendingEncounter.seed);
+        return actConfig.GetRandomEliteEnemy(rng);
+    }
+
+    /// <summary>Son pendingEncounter'ın elite node olup olmadığını kontrol et.</summary>
+    private bool WasLastEncounterElite()
+    {
+        if (run == null || run.pendingEncounter == null)
+            return false;
+
+        // TODO: Burayı kendi Map node type enum’una göre doldur.
+        // Örneğin eğer enum'un:
+        //   public enum NodeType { MinorEncounter, EliteEncounter, Treasure, ... }
+        // ise:
+        //
+        // return run.pendingEncounter.nodeType == NodeType.EliteEncounter;
+        //
+        // Şimdilik default olarak false dönüyor.
+        return false;
+    }
+
+    /// <summary>Elite savaş sonrası: O act'in weighted relic havuzundan rastgele relic seç.</summary>
+    private void TryGrantEliteRelicReward()
+    {
+        var actConfig = ResolveCurrentActConfig();
+        if (actConfig == null)
         {
-            Debug.LogWarning("[GSD] mysteryDbs boş; geri uyumluluk için tekil 'mysteryDb' kullanılacak.");
-            return mysteryDb;
+            Debug.LogWarning("[GSD] Elite ödülü için ActConfig bulunamadı.");
+            return;
         }
 
-        Debug.LogWarning("[GSD] Hiçbir ActMysteryDatabase atanmadı.");
-        return null;
+        var enc = run.pendingEncounter;
+        // seed’in biraz farklı karışsın diye ufak xor
+        var rng = new System.Random(enc.seed ^ 0xBEEF);
+
+        if (actConfig.TryGetRandomRelic(rng, out var relic) && relic != null)
+        {
+            // BURADA relic'i kendi sistemine ekle:
+            // Örneğin:
+            // run.AddRelic(relic);
+            // veya
+            // relicInventory.Add(relic);
+            //
+            Debug.Log($"[GSD] Elite reward relic rolled: {relic.name}. Bunu RunContext / RelicInventory sistemine eklemeyi unutma.");
+        }
+        else
+        {
+            Debug.Log("[GSD] ActConfig içinde verilebilecek relic bulunamadı veya havuz boş.");
+        }
     }
 }

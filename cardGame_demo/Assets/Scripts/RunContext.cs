@@ -5,11 +5,13 @@ using UnityEngine;
 [CreateAssetMenu(menuName="Game/RunContext")]
 public class RunContext : ScriptableObject
 {
+    public enum EncounterTier { Minor, Elite , Boss }
     [System.Serializable]
     public class EncounterData {
         public Map.MapNode mapNode;
         public Map.NodeType nodeType;
         public string blueprintName;
+        public EncounterTier tier = EncounterTier.Minor;
         public int seed;
     }
 
