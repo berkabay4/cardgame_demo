@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MiniBossDefinition
   id: 
   displayName: Elite Enemy
-  sprte: {fileID: 0}
+  sprite: {fileID: 0}
   prefab: {fileID: 7984944881641689443, guid: 40bc3480b929eb64cacbd2f2ecc38814, type: 3}
-  maxHealth: 100
+  maxHealth: 300
   attackDamageRange:
     min: 5
     max: 15

@@ -1408,12 +1408,11 @@ MonoBehaviour:
   - {fileID: 455408694}
   - {fileID: 1225915543}
   - {fileID: 1084258913}
-  enemyPrefab: {fileID: 7984944881641689443, guid: a4023693eb6b2fb49af44da1d03b29e2, type: 3}
+  minorEnemyPrefab: {fileID: 0}
+  eliteEnemyPrefab: {fileID: 0}
   parentForSpawned: {fileID: 1150158933}
-  currentAct: 1
-  database: {fileID: 11400000, guid: bcdc83852971f9c4b969644209576054, type: 2}
+  encounterType: 0
   destroyExistingOnPoint: 1
-  pickRandom: 1
   registerToContext: 1
   testSpawnCount: 1
   spawnOnToggle: 1
@@ -1552,12 +1551,11 @@ MonoBehaviour:
   - {fileID: 455408694}
   - {fileID: 1225915543}
   - {fileID: 1084258913}
-  enemyPrefab: {fileID: 7984944881641689443, guid: a4023693eb6b2fb49af44da1d03b29e2, type: 3}
+  minorEnemyPrefab: {fileID: 7984944881641689443, guid: a4023693eb6b2fb49af44da1d03b29e2, type: 3}
+  eliteEnemyPrefab: {fileID: 7984944881641689443, guid: 40bc3480b929eb64cacbd2f2ecc38814, type: 3}
   parentForSpawned: {fileID: 1150158933}
-  currentAct: 1
-  database: {fileID: 11400000, guid: bcdc83852971f9c4b969644209576054, type: 2}
+  encounterType: 0
   destroyExistingOnPoint: 1
-  pickRandom: 1
   registerToContext: 1
   testSpawnCount: 1
   spawnOnToggle: 1
@@ -2593,8 +2591,7 @@ MonoBehaviour:
   mysteryScene: MysteryScene
   run: {fileID: 11400000, guid: 4a7494b49d843614b90e2abca926d45a, type: 2}
   baseMinorCoins: 50
-  mysteryDbs: []
-  mysteryDb: {fileID: 0}
+  actConfigs: []
   currentActFallback: 1
 --- !u!1 &1022131290
 GameObject:
@@ -3032,7 +3029,8 @@ MonoBehaviour:
   enemyAttackSpacing: 1
   inputDebounceSeconds: 0.12
   player: {fileID: 0}
-  enemies: []
+  enemies:
+  - {fileID: 0}
   onProgress:
     m_PersistentCalls:
       m_Calls: []

@@ -36,7 +36,7 @@ public class EnemyData : ScriptableObject
 
     [Header("Visuals")]
     [Tooltip("Görsel/sprite (2D)")]
-    public Sprite enemySprite;
+    public Sprite sprite;
 
     [Header("Stats")]
     [Min(1)] public int maxHealth = 20;

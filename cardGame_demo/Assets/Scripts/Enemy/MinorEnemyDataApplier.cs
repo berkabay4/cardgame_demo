@@ -1,7 +1,7 @@
 using UnityEngine;
 using System; // string.IsNullOrWhiteSpace
 
-public static class EnemyDataApplier
+public static class MinorEnemyDataApplier
 {
     public static void ApplyTo(this EnemyData data, SimpleCombatant target)
     {
@@ -22,7 +22,7 @@ public static class EnemyDataApplier
 
         // Sprite (varsa)
         var sr = target.GetComponentInChildren<SpriteRenderer>(true) ?? target.GetComponent<SpriteRenderer>();
-        if (sr && data.enemySprite) sr.sprite = data.enemySprite;
+        if (sr && data.sprite) sr.sprite = data.sprite;
 
         // (Gerekirse burada başka EnemyData alanlarını da uygula:
         //  - başlangıç buff/debuff,

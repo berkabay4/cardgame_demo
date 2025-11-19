@@ -219,9 +219,8 @@ MonoBehaviour:
   mysteryScene: MysteryScene
   run: {fileID: 11400000, guid: 4a7494b49d843614b90e2abca926d45a, type: 2}
   baseMinorCoins: 50
-  mysteryDbs:
-  - {fileID: 11400000, guid: 6091c14ee08ce6f42bf0cbf469026f4f, type: 2}
-  mysteryDb: {fileID: 0}
+  actConfigs:
+  - {fileID: 11400000, guid: f81c9a7f156d79342b5c308bbbfa3be1, type: 2}
   currentActFallback: 1
 --- !u!1 &655522239
 GameObject:

@@ -8,7 +8,7 @@ public class MiniBossDefinition : ScriptableObject
     public string displayName = "Mini Boss";
 
     [Header("Visuals")]
-    public Sprite sprte;          // UI / kart görseli
+    public Sprite sprite;          // UI / kart görseli
     public GameObject prefab;        // Sahnede spawn edilecek prefab
 
     [Header("Stats")]
