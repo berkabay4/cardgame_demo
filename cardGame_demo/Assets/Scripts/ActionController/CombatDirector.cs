@@ -7,19 +7,25 @@ using System.Collections;
 public enum TurnStep { PlayerDef, PlayerAtk, SelectTarget, EnemyDef, EnemyAtk, Resolve }
 
 // === State Event Types (aynen korunur) ===
-[System.Serializable] public class StepEvent : UnityEvent<TurnStep> {}
-[System.Serializable] public class BoolEvent : UnityEvent<bool> {}
-[System.Serializable] public class EnemyIdxEvent : UnityEvent<SimpleCombatant,int> {}
-[System.Serializable] public class EnemyPhaseStartedEvent : UnityEvent<SimpleCombatant, PhaseKind> {}
-[System.Serializable] public class EnemyPhaseEndedEvent   : UnityEvent<SimpleCombatant, PhaseKind, int> {}
-[System.Serializable] public class IntEvent : UnityEvent<int> {}
-[System.Serializable] public class TargetEvent : UnityEvent<SimpleCombatant> {}
+[System.Serializable] public class StepEvent : UnityEvent<TurnStep> { }
+[System.Serializable] public class BoolEvent : UnityEvent<bool> { }
+[System.Serializable] public class EnemyIdxEvent : UnityEvent<SimpleCombatant, int> { }
+[System.Serializable] public class EnemyPhaseStartedEvent : UnityEvent<SimpleCombatant, PhaseKind> { }
+[System.Serializable] public class EnemyPhaseEndedEvent : UnityEvent<SimpleCombatant, PhaseKind, int> { }
+[System.Serializable] public class IntEvent : UnityEvent<int> { }
+[System.Serializable] public class TargetEvent : UnityEvent<SimpleCombatant> { }
+
+public enum FightKind
+{
+    Minor,
+    EliteMiniBoss,
+    Boss
+}
 
 [DisallowMultipleComponent]
 public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 {
     public static event System.Action ContextReady;
-    // --------- Singleton ----------
     public static CombatDirector Instance { get; private set; }
 
     [Header("Lifecycle")]
@@ -28,12 +34,23 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public UnityEvent onGameStarted;
     static int? s_LastPlayerHP;
 
+    // === Fight / pattern state ===
+
+    /// <summary>Bu combat’taki dövüş tipi. CombatFlowAdapter’dan set et.</summary>
+    public FightKind CurrentFightKind { get; private set; } = FightKind.Minor;
+
+    /// <summary>Kaçıncı el (1,2,3...). Her StartNewTurn’de +1.</summary>
+    public int TurnIndex { get; private set; }
+
+    /// <summary>Bu elde kaçıncı enemy saldırısı (1,2,3...). Sadece Resolve sırasında artar.</summary>
+    public int EnemyAttackRoundIndex { get; private set; }
+
     [Header("Settings")]
     [SerializeField, Min(1)] int threshold = 21;
     [SerializeField] bool reshuffleWhenLow = true;
     [SerializeField, Min(5)] int lowDeckCount = 8;
     [SerializeField] Vector2 enemyDrawDelayRange = new(0.5f, 1.5f);
-    [SerializeField, Min(0f)] float enemyAttackSpacing = 1.0f; // düşmanlar arası bekleme
+    [SerializeField, Min(0f)] float enemyAttackSpacing = 1.0f;
     [SerializeField, Min(0f)] float inputDebounceSeconds = 0.12f;
 
     // --------- Refs ----------
@@ -43,8 +60,8 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 
     // --------- Bridge/UI ----------
     [Header("UnityEvents (Bridge/UI)")]
-    public UnityEvent<Actor,PhaseKind,int,int> onProgress;
-    public UnityEvent<Actor,PhaseKind,Card> onCardDrawn;
+    public UnityEvent<Actor, PhaseKind, int, int> onProgress;
+    public UnityEvent<Actor, PhaseKind, Card> onCardDrawn;
     public UnityEvent<string> onLog;
     public UnityEvent onGameOver;
     public UnityEvent onGameWin;
@@ -61,7 +78,8 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public IntEvent onPlayerDefLocked;
     public IntEvent onPlayerAtkLocked;
     public TargetEvent onTargetChanged;
-    public IReadOnlyList<SimpleCombatant> AliveEnemies => _enemies?.AliveEnemies ?? _enemies?.All ?? new List<SimpleCombatant>();
+    public IReadOnlyList<SimpleCombatant> AliveEnemies
+        => _enemies?.AliveEnemies ?? _enemies?.All ?? new List<SimpleCombatant>();
 
     // --------- Animation Bridge ----------
     [Header("Animation Events")]
@@ -89,13 +107,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     public UIEvents Events = new UIEvents();
 
     bool _isGameStarted;
-    bool _systemsReady;  // Context + registry + controller'lar kuruldu mu?
-
-    // === MiniBoss pattern state ===
-
-    /// <summary>Kaçıncı enemy saldırı eli (1,2,3,...). Sadece EnemyAtk resolve edildiğinde artar.</summary>
-    public int EnemyAttackRoundIndex { get; private set; }    
-    int _enemyAttackRoundIndex = 0;
+    bool _systemsReady;
 
     // === ICoroutineHost ===
     public Coroutine Run(IEnumerator routine) => StartCoroutine(routine);
@@ -103,20 +115,30 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     // === IAnimationBridge ===
     bool _animImpact, _animDone;
     [SerializeField, Min(0f)] float animImpactTimeout = 2f;
-    [SerializeField, Min(0f)] float animDoneTimeout   = 2f;
+    [SerializeField, Min(0f)] float animDoneTimeout = 2f;
+
     public void AnimReportImpact() => _animImpact = true;
-    public void AnimReportDone()   => _animDone = true;
+    public void AnimReportDone() => _animDone = true;
+
     public IEnumerator PlayAttackAnimation(SimpleCombatant attacker, SimpleCombatant defender, int damage, System.Action onImpact)
     {
         _animImpact = false; _animDone = false;
         onAttackAnimationRequest?.Invoke(attacker, defender, damage);
 
         float t = animImpactTimeout;
-        while (!_animImpact && t > 0f) { t -= Time.deltaTime; yield return null; }
+        while (!_animImpact && t > 0f)
+        {
+            t -= Time.deltaTime;
+            yield return null;
+        }
         onImpact?.Invoke();
 
         t = animDoneTimeout;
-        while (!_animDone && t > 0f) { t -= Time.deltaTime; yield return null; }
+        while (!_animDone && t > 0f)
+        {
+            t -= Time.deltaTime;
+            yield return null;
+        }
     }
 
     void Awake()
@@ -126,7 +148,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
     }
 
-    void OnEnable()  => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
+    void OnEnable() => EnemySpawner.EnemiesSpawned += OnEnemiesSpawnedEvent;
     void OnDisable() => EnemySpawner.EnemiesSpawned -= OnEnemiesSpawnedEvent;
 
     IEnumerator Start()
@@ -144,7 +166,8 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         // ▶ Yeni combat başlarken varsa taşınan HP’yi uygula
         ApplyCarriedHPIfAny();
 
-        if (autoStartOnAwake) StartGame(); else onLog?.Invoke("Press START to begin.");
+        if (autoStartOnAwake) StartGame();
+        else onLog?.Invoke("Press START to begin.");
     }
 
     void ResolveRefsInitial()
@@ -169,7 +192,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
             if (sc) return sc;
         }
 
-        // 2) PlayerStats taşıyan SC (en güvenilir)
+        // 2) PlayerStats taşıyan SC
         var scs = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         var byStats = scs.FirstOrDefault(s => s && s.GetComponentInChildren<PlayerStats>(true));
         if (byStats) return byStats;
@@ -200,26 +223,25 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
             Ctx.RegisterDeck(e, d);
         }
 
-        // >>>> YENİ: PlayerStats'tan per-phase threshold uygula (BAŞLANGIÇTA)
+        // Player threshold
         ApplyInitialPlayerThresholds();
 
         // --- Sistemler ---
-        Queue = new ActionQueue();
-        State = new BattleState();
-        _enemies = new EnemyRegistry(this, player, enemies, onLog);
-        _player  = new PlayerPhaseController(this, Ctx, Queue, State, onPlayerDefLocked, onPlayerAtkLocked, onLog);
-        _enemy   = new EnemyPhaseController(this, Ctx, Queue, State, onEnemyTurnIndexChanged, onEnemyPhaseStarted, onEnemyPhaseEnded, enemyDrawDelayRange, onLog);
-        _targeting  = new TargetingController(this, State, _enemies, onWaitingForTargetChanged, onTargetChanged, onLog);
+        Queue      = new ActionQueue();
+        State      = new BattleState();
+        _enemies   = new EnemyRegistry(this, player, enemies, onLog);
+        _player    = new PlayerPhaseController(this, Ctx, Queue, State, onPlayerDefLocked, onPlayerAtkLocked, onLog);
+        _enemy     = new EnemyPhaseController(this, Ctx, Queue, State, onEnemyTurnIndexChanged, onEnemyPhaseStarted, onEnemyPhaseEnded, enemyDrawDelayRange, onLog);
+        _targeting = new TargetingController(this, State, _enemies, onWaitingForTargetChanged, onTargetChanged, onLog);
         _resolution = new ResolutionController(this, Ctx, State, _enemies, enemyAttackSpacing, onLog, onRoundResolved, onGameOver, onGameWin, this);
-        _input = new InputGate(inputDebounceSeconds);
+        _input      = new InputGate(inputDebounceSeconds);
 
         _systemsReady = true;
         ContextReady?.Invoke();
 
-        // MiniBoss saldırı patternleri için enemy phase event'ine bağlan
+        // MiniBoss pattern logları için enemy phase event'ine bağlan
         onEnemyPhaseEnded.AddListener(HandleEnemyPhaseEndedForMiniBoss);
 
-        // Log: başlangıç deste boyutları
         onLog?.Invoke($"[Decks] PlayerDeck={Ctx.GetDeckFor(Actor.Player)?.Count ?? 0} | EnemyDecks={enemies.Count}");
     }
 
@@ -230,7 +252,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         var stats = player.GetComponentInChildren<PlayerStats>(true);
         if (stats)
         {
-            Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  stats.MaxAttackRange);
+            Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack, stats.MaxAttackRange);
             Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Defense, stats.MaxDefenseRange);
             onLog?.Invoke($"[Init] Player thresholds set from stats → ATK:{stats.MaxAttackRange} DEF:{stats.MaxDefenseRange}");
         }
@@ -244,8 +266,9 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     {
         Log("[Director] Resetting combat state...");
 
+        TurnIndex = 0;
         EnemyAttackRoundIndex = 0;
-        // yeni BattleState ve ActionQueue
+
         State = new BattleState();
         Queue = new ActionQueue();
 
@@ -259,46 +282,33 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
                 Ctx?.RegisterDeck(e, BuildDeckForUnit(e));
         }
 
-        // Player accumulator reset
         _player?.ResetAccumulator(PhaseKind.Defense);
         _player?.ResetAccumulator(PhaseKind.Attack);
 
-        // Target temizle
         _targeting?.CancelTargetMode();
 
-        // Thresholdları tekrar uygula
         ApplyInitialPlayerThresholds();
 
-        // Round state reset
         State.ResetForNewTurn();
-
-        // MiniBoss saldırı tur sayacını sıfırla
-        _enemyAttackRoundIndex = 0;
 
         Log("[Director] Combat state reset complete.");
     }
 
     IDeckService BuildDeckForUnit(SimpleCombatant unit)
     {
-        // 1) CombatantDeck varsa onu kullan (içinde SetInitialCards/Shuffle çağrısı yapıyor olmalı)
         if (unit)
         {
             var def = unit.GetComponent<CombatantDeck>();
             if (def != null)
             {
                 var built = def.BuildDeck();
-                // Güvenlik logu
                 onLog?.Invoke($"[Deck] {unit.name} deck built → {built?.Count ?? 0} cards.");
                 return built ?? new DeckService();
             }
         }
 
-        // 2) Fallback: default 52 kart + (opsiyonel) 2 Joker
         var deck = new DeckService();
         var initial = CreateDefault52();
-        // initial.Add(new Card(Rank.Joker, "None"));
-        // initial.Add(new Card(Rank.Joker, "None"));
-
         deck.SetInitialCards(initial, takeSnapshot: true);
         deck.Shuffle();
 
@@ -314,17 +324,16 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         foreach (var s in suits)
         {
             for (int v = 2; v <= 10; v++) list.Add(new Card((Rank)v, s));
-            list.Add(new Card(Rank.Jack,  s));
+            list.Add(new Card(Rank.Jack, s));
             list.Add(new Card(Rank.Queen, s));
-            list.Add(new Card(Rank.King,  s));
-            list.Add(new Card(Rank.Ace,   s));
+            list.Add(new Card(Rank.King, s));
+            list.Add(new Card(Rank.Ace, s));
         }
         return list;
     }
 
     void OnEnemiesSpawnedEvent()
     {
-        // Sistemler daha hazır değilse, sadece sahnedeki enemy referanslarını topla ve çık
         if (!_systemsReady || _enemies == null)
         {
             var all = FindObjectsByType<SimpleCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
@@ -333,7 +342,6 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
             return;
         }
 
-        // Normal yol
         _enemies.Refresh();
         onLog?.Invoke($"[Director] Enemies refreshed. Count={_enemies.AliveEnemies.Count}");
     }
@@ -343,12 +351,19 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     {
         if (_isGameStarted) return;
 
-        // Yeni combat başlarken miniboss saldırı tur sayacını sıfırla
-        _enemyAttackRoundIndex = 0;
+        TurnIndex = 0;
+        EnemyAttackRoundIndex = 0;
 
         _isGameStarted = true;
         onGameStarted?.Invoke();
         StartNewTurn();
+    }
+
+    /// <summary>CombatFlowAdapter gibi yerlerden çağır: Minor / Elite / Boss.</summary>
+    public void SetFightKind(FightKind kind)
+    {
+        CurrentFightKind = kind;
+        Log($"[Director] FightKind set to {kind}");
     }
 
     public void OnDrawClicked()
@@ -358,7 +373,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         switch (State.Step)
         {
             case TurnStep.PlayerDef: Run(_player.DrawDefense()); break;
-            case TurnStep.PlayerAtk: Run(_player.DrawAttack());  break;
+            case TurnStep.PlayerAtk: Run(_player.DrawAttack()); break;
             default: onLog?.Invoke("Draw is not available in this step."); break;
         }
     }
@@ -383,23 +398,24 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
 
     public void SetThreshold(int value)
     {
-        // Global fallback’ı güncelle
-        Ctx.SetGlobalThreshold(Mathf.Max(5, value), refreshProgress:false);
+        Ctx.SetGlobalThreshold(Mathf.Max(5, value), refreshProgress: false);
         Ctx.OnLog?.Invoke($"[Rule] Threshold (global fallback) → {Ctx.Threshold}");
 
-        // Player
         var pDef = Ctx.TryGetAcc(Actor.Player, PhaseKind.Defense, false, true);
-        if (pDef != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Defense, pDef.Total, Ctx.GetThreshold(Actor.Player, PhaseKind.Defense));
+        if (pDef != null)
+            Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Defense, pDef.Total, Ctx.GetThreshold(Actor.Player, PhaseKind.Defense));
 
-        var pAtk = Ctx.TryGetAcc(Actor.Player, PhaseKind.Attack,  false, true);
-        if (pAtk != null) Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Attack,  pAtk.Total, Ctx.GetThreshold(Actor.Player, PhaseKind.Attack));
+        var pAtk = Ctx.TryGetAcc(Actor.Player, PhaseKind.Attack, false, true);
+        if (pAtk != null)
+            Ctx.OnProgress?.Invoke(Actor.Player, PhaseKind.Attack, pAtk.Total, Ctx.GetThreshold(Actor.Player, PhaseKind.Attack));
 
-        // Enemy
         var eDef = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Defense, false, false);
-        if (eDef != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, eDef.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Defense));
+        if (eDef != null)
+            Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Defense, eDef.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Defense));
 
-        var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack,  false, false);
-        if (eAtk != null) Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack,  eAtk.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Attack));
+        var eAtk = Ctx.TryGetAcc(Actor.Enemy, PhaseKind.Attack, false, false);
+        if (eAtk != null)
+            Ctx.OnProgress?.Invoke(Actor.Enemy, PhaseKind.Attack, eAtk.Total, Ctx.GetThreshold(Actor.Enemy, PhaseKind.Attack));
     }
 
     public void Log(string msg)
@@ -415,7 +431,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
     {
         if (!_isGameStarted) return;
 
-        // Yeni elde miniboss round counter sıfırlansın
+        TurnIndex++;
         EnemyAttackRoundIndex = 0;
 
         onRoundStarted?.Invoke();
@@ -427,28 +443,32 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         Run(Queue.RunAllCoroutine(Ctx));
 
         if (_enemy.Running != null) StopCoroutine(_enemy.Running);
-        _enemy.Running = StartCoroutine(_enemy.PrecomputeBothPhasesThen(() => BeginPhase(TurnStep.PlayerDef)));
+        _enemy.Running = StartCoroutine(
+            _enemy.PrecomputeBothPhasesThen(() => BeginPhase(TurnStep.PlayerDef))
+        );
     }
+
     /// <summary>
-    /// Enemy saldırı eli sayacını 1 arttırır ve yeni değeri döner.
-    /// (MiniBoss pattern’leri için kullanılıyor.)
+    /// Resolve sırasında enemy saldırı eli sayacını 1 arttırır ve yeni değeri döner.
+    /// MiniBoss / Boss pattern’leri bu değeri kullanır.
     /// </summary>
     public int NextEnemyAttackRound()
     {
         EnemyAttackRoundIndex++;
         return EnemyAttackRoundIndex;
     }
+
     public void SetPlayerPhaseThresholds(int atk, int def)
     {
         if (Ctx == null) return;
-        Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack,  atk);
+        Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Attack, atk);
         Ctx.SetPhaseThreshold(Actor.Player, PhaseKind.Defense, def);
     }
 
     public void SetEnemyPhaseThresholds(int atk, int def)
     {
         if (Ctx == null) return;
-        Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack,  atk);
+        Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Attack, atk);
         Ctx.SetPhaseThreshold(Actor.Enemy, PhaseKind.Defense, def);
     }
 
@@ -490,7 +510,6 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         }
     }
 
-    // --- EK: HP’yi uygula (yeni combat açılışında) ---
     void ApplyCarriedHPIfAny()
     {
         var hm = player ? player.GetComponent<HealthManager>() : null;
@@ -513,10 +532,9 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         Run(_resolution.ResolveRoundAndRestart());
     }
 
-    // === MiniBoss pattern handler ===
+    // === MiniBoss pattern handler (bilgi amaçlı log) ===
     void HandleEnemyPhaseEndedForMiniBoss(SimpleCombatant enemy, PhaseKind phase, int total)
     {
-        // Sadece enemy ATK fazı bittiğinde ilgileniyoruz
         if (phase != PhaseKind.Attack) return;
         if (enemy == null || Ctx == null) return;
 
@@ -524,20 +542,7 @@ public class CombatDirector : MonoBehaviour, ICoroutineHost, IAnimationBridge
         if (mini == null || mini.Definition == null || mini.Definition.attackBehaviour == null)
             return; // normal enemy → pattern yok
 
-        // Bu, kaçıncı enemy saldırı turu?
-        _enemyAttackRoundIndex++;
-
-        // IMPORTANT:
-        // Asıl saldırı artık ResolutionController.ResolveRoundAndRestart içinde
-        // MiniBossAttackBehaviour.ExecuteAttackCoroutine ile yapılıyor.
-        // Burada sadece round index'i ve total'i takip ediyoruz.
-        CombatDirector.Instance.Log(
-            $"[MiniBoss] Enemy ATK phase ended. baseATK={total}, roundIndex={_enemyAttackRoundIndex}"
-        );
-
-        // Eğer ileride behaviour'ın faz bittiğinde state güncellemesi
-        // yapması gerekirse, buradan "bilgi" amaçlı bir callback ekleyebilirsin;
-        // ama direkt damage/animasyon burada çağrılmamalı.
+        Log($"[MiniBoss] Enemy ATK phase ended. baseATK={total}, currentRoundIndex={EnemyAttackRoundIndex}");
     }
 
     // === helpers ===

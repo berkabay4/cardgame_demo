@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 [DisallowMultipleComponent]
 public class MiniBossRuntime : MonoBehaviour
@@ -9,7 +10,7 @@ public class MiniBossRuntime : MonoBehaviour
     /// <summary>Bilgi amaçlı; gerçek HP HealthManager üzerinden tutulur.</summary>
     public int CurrentHealth { get; private set; }
 
-    /// <summary>Combat’a spawn olurken çağır.</summary>
+    /// <summary>Combat’a spawn olurken EliteEnemyDataApplier tarafından çağrılır.</summary>
     public void Init(MiniBossDefinition def)
     {
         definition = def;
@@ -26,37 +27,39 @@ public class MiniBossRuntime : MonoBehaviour
         }
         else
         {
-            // HM yoksa sadece local değeri güncelle
             CurrentHealth = maxHp;
         }
     }
 
     /// <summary>
-    /// Enemy attack fazı için çağrılır.
-    /// NOT: Asıl pattern'li saldırı artık ResolutionController içinde
-    /// MiniBossAttackBehaviour.ExecuteAttackCoroutine üzerinden çalışıyor.
-    /// Bu metot şu an sadece Fallback amaçlı.
+    /// Eski API ile uyum için bırakılmıştır. Mümkünse ResolutionController üzerinden kullan.
     /// </summary>
     public void TakeTurn(CombatContext ctx, int baseAttackValue, int attackRoundIndex)
     {
-        if (ctx == null)
+        if (definition == null || definition.attackBehaviour == null || ctx == null)
+            return;
+
+        var director = CombatDirector.Instance;
+        var anim = director as IAnimationBridge;
+        if (anim == null)
         {
-            Debug.LogWarning("[MiniBossRuntime] TakeTurn ctx null.");
+            Debug.LogWarning("[MiniBossRuntime] No IAnimationBridge found on CombatDirector.");
             return;
         }
 
-        // Şu an için behaviour üzerinden gitmiyoruz (coroutine API kullanılıyor).
-        // Burada sadece basit bir fallback bırakıyoruz.
+        var sc = GetComponent<SimpleCombatant>();
+        if (sc == null) return;
 
-        int dmg = baseAttackValue > 0
-            ? baseAttackValue
-            : (definition != null ? definition.attackDamageRange.RollInclusive() : 5);
+        var info = new EnemyAttackContextInfo
+        {
+            fightKind = director != null ? (EnemyFightKind)director.CurrentFightKind : EnemyFightKind.EliteMiniBoss,
+            turnIndex = director != null ? director.TurnIndex : 1,
+            attackRoundIndex = attackRoundIndex
+        };
 
-        DealDamageToPlayer(ctx, dmg);
-        Debug.Log($"[MiniBossRuntime] {name} fallback attack → {dmg} damage. (TakeTurn)");
+        director.Run(definition.attackBehaviour.ExecuteAttackCoroutine(anim, ctx, sc, baseAttackValue, info));
     }
 
-    /// <summary>Mini boss hasar aldığında çağır (örn. Resolution tarafı).</summary>
     public void TakeDamage(int amount)
     {
         if (amount <= 0) return;
@@ -72,29 +75,6 @@ public class MiniBossRuntime : MonoBehaviour
             CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
         }
 
-        // Ölüm kontrolü / animasyon vs. buraya gelebilir.
-    }
-
-    // === INTERNAL HELPERS ===
-
-    void DealDamageToPlayer(CombatContext ctx, int amount)
-    {
-        if (ctx == null || amount <= 0) return;
-
-        var playerUnit = ctx.Player;
-        if (playerUnit == null)
-        {
-            Debug.LogWarning("[MiniBossRuntime] Player unit not found in CombatContext.");
-            return;
-        }
-
-        var hm = playerUnit.GetComponent<HealthManager>();
-        if (hm == null)
-        {
-            Debug.LogWarning("[MiniBossRuntime] Player HealthManager not found.");
-            return;
-        }
-
-        hm.TakeDamage(amount);
+        // Ölüm animasyonu vs. buraya.
     }
 }
