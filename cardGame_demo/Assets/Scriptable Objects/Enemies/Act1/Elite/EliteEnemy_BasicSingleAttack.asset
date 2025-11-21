@@ -12,3 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 121e08f42de1ecc419e414b03f82f91f, type: 3}
   m_Name: EliteEnemy_BasicSingleAttack
   m_EditorClassIdentifier: Assembly-CSharp::BasicSingleAttackBehaviour
+  multiHitCountOnEvenTurn: 2

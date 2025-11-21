@@ -9,12 +9,7 @@ public interface ICoroutineHost
 
 public interface IAnimationBridge
 {
-    IEnumerator PlayAttackAnimation(
-        SimpleCombatant attacker,
-        SimpleCombatant defender,
-        int damage,
-        System.Action onImpact
-    );
+    IEnumerator PlayAttackAnimation(SimpleCombatant attacker, SimpleCombatant defender, int damage, System.Action onImpact);
 }
 
 public class ResolutionController
@@ -64,13 +59,17 @@ public class ResolutionController
         // =====================================================
         // 1) PLAYER → TARGET
         // =====================================================
-        if (_state.CurrentTarget != null && _state.CurrentTarget.CurrentHP > 0)
+        int playerAtkTotal = Mathf.Max(0, _state.PlayerAtkTotal);
+
+        if (_state.CurrentTarget != null &&
+            _state.CurrentTarget.CurrentHP > 0 &&
+            playerAtkTotal > 0)                     // <-- Attack 0 ise hiç animasyon yok
         {
             int targetDef = _state.EnemyDefTotals.TryGetValue(_state.CurrentTarget, out var d)
                 ? Mathf.Max(0, d)
                 : 0;
 
-            int dmg = Mathf.Max(0, Mathf.Max(0, _state.PlayerAtkTotal) - targetDef);
+            int dmg = Mathf.Max(0, playerAtkTotal - targetDef);
 
             yield return _host.Run(
                 _anim.PlayAttackAnimation(_ctx.Player, _state.CurrentTarget, dmg, () =>
@@ -89,7 +88,10 @@ public class ResolutionController
         }
         else
         {
-            _log?.Invoke("No valid target for your attack.");
+            if (playerAtkTotal <= 0)
+                _log?.Invoke("You have no attack this round.");
+            else
+                _log?.Invoke("No valid target for your attack.");
         }
 
         // =====================================================
@@ -121,62 +123,76 @@ public class ResolutionController
                 ? Mathf.Max(0, atk)
                 : 0;
 
+            // Attack 0 ise hiç saldırı / animasyon yok
             if (enemyAtk > 0)
             {
-                // --- Önce DEF’i uygula, effective hasarı hesapla ---
+                // --- Player DEF uygula (toplam stand’lar üzerinden) ---
                 int effective = Mathf.Max(0, enemyAtk - remainingDef);
+                int blocked   = Mathf.Min(remainingDef, enemyAtk);
                 remainingDef  = Mathf.Max(0, remainingDef - enemyAtk);
 
-                if (effective > 0)
+                // MiniBoss / Boss mu?
+                var mini = enemy.GetComponent<MiniBossRuntime>();
+                var director2 = CombatDirector.Instance;
+                bool isMiniBoss = mini != null &&
+                                  mini.Definition != null &&
+                                  mini.Definition.attackBehaviour != null &&
+                                  director2 != null;
+
+                if (isMiniBoss)
                 {
-                    // MiniBoss / Boss mu?
-                    var mini = enemy.GetComponent<MiniBossRuntime>();
+                    // === MINI BOSS / BOSS BRANCH ===
+                    int roundIndex = director2.NextEnemyAttackRound();
 
-                    if (mini != null &&
-                        mini.Definition != null &&
-                        mini.Definition.attackBehaviour != null &&
-                        director != null)
+                    var info = new EnemyAttackContextInfo
                     {
-                        // === MINI BOSS / BOSS BRANCH ===
-                        int roundIndex = director.NextEnemyAttackRound();
+                        fightKind        = (EnemyFightKind)director2.CurrentFightKind,
+                        turnIndex        = director2.TurnIndex,
+                        attackRoundIndex = roundIndex
+                    };
 
-                        var info = new EnemyAttackContextInfo
-                        {
-                            fightKind        = (EnemyFightKind)director.CurrentFightKind,
-                            turnIndex        = director.TurnIndex,
-                            attackRoundIndex = roundIndex
-                        };
+                    _log?.Invoke(
+                        $"[MiniBoss] Attack phase → baseATK={enemyAtk}, " +
+                        $"effective={effective}, blocked={blocked}, " +
+                        $"turn={info.turnIndex}, round={info.attackRoundIndex}"
+                    );
 
-                        yield return _host.Run(
-                            mini.Definition.attackBehaviour.ExecuteAttackCoroutine(
-                                _anim,
-                                _ctx,
-                                enemy,      // SimpleCombatant
-                                effective,  // DEF sonrası temel damage
-                                info
-                            )
-                        );
-                    }
-                    else
-                    {
-                        // === NORMAL ENEMY BRANCH ===
-                        yield return _host.Run(
-                            _anim.PlayAttackAnimation(enemy, _ctx.Player, effective, () =>
-                            {
-                                _ctx.Player.TakeDamage(effective);
-                                _log?.Invoke($"{enemy.name} hits you for {effective}.");
-                            })
-                        );
-                    }
+                    // Burada baseAttackValue = enemyAtk (DEF sonrası değil),
+                    // behaviour içinden kaç vuruş / nasıl vuracağına karar veriyor.
+                    yield return _host.Run(
+                        mini.Definition.attackBehaviour.ExecuteAttackCoroutine(
+                            _anim,
+                            _ctx,
+                            enemy,
+                            enemyAtk,
+                            info
+                        )
+                    );
                 }
                 else
                 {
-                    _log?.Invoke($"{enemy.name}'s attack was blocked.");
+                    // === NORMAL ENEMY BRANCH ===
+                    int damageToApply = effective; // 0 olabilir, ama animasyon yine oynar
+
+                    yield return _host.Run(
+                        _anim.PlayAttackAnimation(enemy, _ctx.Player, damageToApply, () =>
+                        {
+                            if (damageToApply > 0)
+                            {
+                                _ctx.Player.TakeDamage(damageToApply);
+                                _log?.Invoke($"{enemy.name} hits you for {damageToApply}.");
+                            }
+                            else
+                            {
+                                _log?.Invoke($"{enemy.name}'s attack was blocked.");
+                            }
+                        })
+                    );
                 }
             }
             else
             {
-                _log?.Invoke($"{enemy.name} attacks but has no effective attack.");
+                _log?.Invoke($"{enemy.name} has no attack this round.");
             }
 
             // birden fazla düşman varsa aralarına spacing koy
@@ -208,13 +224,11 @@ public class ResolutionController
     {
         var aliveEnemies = _enemies.AliveEnemies;
 
-        var director = CombatDirector.Instance;
-
         if (_ctx.Player.CurrentHP <= 0 && aliveEnemies.Count > 0)
         {
             _log?.Invoke("Game Over");
             _onGameOver?.Invoke();
-            director?.ResetCombatState();
+            CombatDirector.Instance.ResetCombatState();
             return true;
         }
 
@@ -222,14 +236,14 @@ public class ResolutionController
         {
             _log?.Invoke("Game Win!");
             _onGameWin?.Invoke();
-            director?.ResetCombatState();
+            CombatDirector.Instance.ResetCombatState();
             return true;
         }
 
         if (_ctx.Player.CurrentHP <= 0 && aliveEnemies.Count == 0)
         {
             _log?.Invoke("Draw! (both defeated)");
-            director?.ResetCombatState();
+            CombatDirector.Instance.ResetCombatState();
             return true;
         }
 
